@@ -36,9 +36,15 @@ export default function HomePage() {
   }, []);
 
   async function fetchUserInfo() {
+    console.log('开始获取用户信息...');
+    console.log('window.h5sdk:', (window as any).h5sdk);
+    console.log('window.tt:', (window as any).tt);
+    console.log('URL:', window.location.href);
+    
     try {
       // 方式1: 使用飞书 JSSDK 获取用户授权码
       if (typeof window !== 'undefined' && (window as any).h5sdk) {
+        console.log('使用飞书 JSSDK 授权...');
         const h5sdk = (window as any).h5sdk;
         
         // 获取 app_id
