@@ -35,15 +35,30 @@ export default function HomePage() {
     fetchUserInfo();
   }, []);
 
+  async function waitForSDK(maxWait = 5000): Promise<boolean> {
+    const startTime = Date.now();
+    while (Date.now() - startTime < maxWait) {
+      if ((window as any).h5sdk && (window as any).tt) {
+        return true;
+      }
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    return false;
+  }
+
   async function fetchUserInfo() {
     console.log('开始获取用户信息...');
+    console.log('URL:', window.location.href);
+    
+    // 等待 SDK 加载（最多等待5秒）
+    const sdkReady = await waitForSDK(5000);
+    console.log('SDK 就绪:', sdkReady);
     console.log('window.h5sdk:', (window as any).h5sdk);
     console.log('window.tt:', (window as any).tt);
-    console.log('URL:', window.location.href);
     
     try {
       // 方式1: 使用飞书 JSSDK 获取用户授权码
-      if (typeof window !== 'undefined' && (window as any).h5sdk) {
+      if (sdkReady) {
         console.log('使用飞书 JSSDK 授权...');
         const h5sdk = (window as any).h5sdk;
         
