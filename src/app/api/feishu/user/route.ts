@@ -1,13 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserInfoByOpenId, getUserInfoByUserId } from '@/lib/feishu';
+import { getUserInfoByCode, getUserInfoByOpenId, getUserInfoByUserId } from '@/lib/feishu';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     
-    // 优先从 URL 参数获取，其次从 headers 获取
-    const openId = searchParams.get('open_id') || request.headers.get('x-feishu-open-id') || undefined;
-    const userId = searchParams.get('user_id') || request.headers.get('x-feishu-user-id') || undefined;
+    // 方式1: 通过 code 换取用户信息（飞书 JSSDK 授权）
+    const code = searchParams.get('code');
+    
+    if (code) {
+      const userInfo = await getUserInfoByCode(code);
+      if (userInfo) {
+        return NextResponse.json({
+          success: true,
+          data: userInfo,
+        });
+      } else {
+        return NextResponse.json(
+          { error: '通过授权码获取用户信息失败' },
+          { status: 401 }
+        );
+      }
+    }
+
+    // 方式2: 从 headers 获取（调试用）
+    const openId = request.headers.get('x-feishu-open-id') || undefined;
+    const userId = request.headers.get('x-feishu-user-id') || undefined;
 
     let userInfo = null;
 
@@ -19,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     if (!userInfo) {
       return NextResponse.json(
-        { error: '无法获取用户信息，请确认应用已配置正确的权限' },
+        { error: '无法获取用户信息，请确保从飞书应用入口访问' },
         { status: 401 }
       );
     }

@@ -37,27 +37,60 @@ export default function HomePage() {
 
   async function fetchUserInfo() {
     try {
-      // 从 URL 参数获取飞书用户信息
-      const params = new URLSearchParams(window.location.search);
-      const openId = params.get('open_id') || params.get('openId');
-      const userId = params.get('user_id') || params.get('userId');
-      
-      // 构建查询参数
-      const queryParams = new URLSearchParams();
-      if (openId) queryParams.set('open_id', openId);
-      if (userId) queryParams.set('user_id', userId);
+      // 方式1: 使用飞书 JSSDK 获取用户授权码
+      if (typeof window !== 'undefined' && (window as any).h5sdk) {
+        const h5sdk = (window as any).h5sdk;
+        
+        // 获取 app_id
+        const appidRes = await fetch('/api/feishu/appid');
+        const appidData = await appidRes.json();
+        
+        if (!appidData.appid) {
+          throw new Error('无法获取应用ID');
+        }
 
-      const queryString = queryParams.toString();
-      const url = queryString ? `/api/feishu/user?${queryString}` : '/api/feishu/user';
-
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data.success) {
-        setUserInfo(data.data);
+        // 使用 Promise 包装 h5sdk.ready
+        await new Promise<void>((resolve, reject) => {
+          h5sdk.ready(() => {
+            (window as any).tt.requestAccess({
+              appID: appidData.appid,
+              scopeList: [],
+              success: async (res: { code: string }) => {
+                // 将 code 发送到后端换取用户信息
+                const userRes = await fetch(`/api/feishu/user?code=${res.code}`);
+                const userData = await userRes.json();
+                if (userData.success) {
+                  setUserInfo(userData.data);
+                } else {
+                  setError(userData.error || '获取用户信息失败');
+                }
+                resolve();
+              },
+              fail: (err: any) => {
+                console.error('requestAccess fail:', err);
+                setError('飞书授权失败');
+                resolve();
+              }
+            });
+          });
+          h5sdk.error((err: any) => {
+            console.error('h5sdk error:', err);
+            setError('飞书 SDK 初始化失败');
+            resolve();
+          });
+        });
       } else {
-        setError(data.error || '获取用户信息失败');
+        // 方式2: 尝试从服务器直接获取用户信息（用于调试）
+        const response = await fetch('/api/feishu/user');
+        const data = await response.json();
+        if (data.success) {
+          setUserInfo(data.data);
+        } else {
+          setError(data.error || '获取用户信息失败，请确保在飞书应用内打开');
+        }
       }
     } catch (err) {
+      console.error('fetchUserInfo error:', err);
       setError('无法连接到服务器');
     } finally {
       setLoading(false);
@@ -85,19 +118,10 @@ export default function HomePage() {
 
     setResetLoading(true);
     try {
-      const params = new URLSearchParams(window.location.search);
-      const openId = params.get('open_id') || params.get('openId');
-      const userId = params.get('user_id') || params.get('userId');
-
       const response = await fetch('/api/ad/password/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          newPassword, 
-          confirmPassword,
-          open_id: openId,
-          user_id: userId
-        }),
+        body: JSON.stringify({ newPassword, confirmPassword }),
       });
       const data = await response.json();
       if (data.success) {
@@ -119,18 +143,7 @@ export default function HomePage() {
     setQueryResult(null);
     setShowQueryPassword(false);
     try {
-      const params = new URLSearchParams(window.location.search);
-      const openId = params.get('open_id') || params.get('openId');
-      const userId = params.get('user_id') || params.get('userId');
-
-      const queryParams = new URLSearchParams();
-      if (openId) queryParams.set('open_id', openId);
-      if (userId) queryParams.set('user_id', userId);
-
-      const queryString = queryParams.toString();
-      const url = queryString ? `/api/ad/password/query?${queryString}` : '/api/ad/password/query';
-
-      const response = await fetch(url);
+      const response = await fetch('/api/ad/password/query');
       const data = await response.json();
       if (data.success && data.data) {
         setQueryResult(data.data);
@@ -175,9 +188,6 @@ export default function HomePage() {
           <CardContent>
             <p className="text-sm text-gray-500">
               请确保从飞书应用入口访问此页面，并确认应用已配置正确的权限。
-            </p>
-            <p className="text-xs text-gray-400 mt-4">
-              当前URL: {typeof window !== 'undefined' ? window.location.href : ''}
             </p>
           </CardContent>
         </Card>
