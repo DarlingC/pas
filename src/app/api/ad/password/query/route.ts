@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPasswordByUserId } from '@/lib/db';
-import { extractUserIdFromHeaders } from '@/lib/feishu';
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId, openId } = extractUserIdFromHeaders(request.headers);
+    const { searchParams } = new URL(request.url);
     
+    // 优先从 URL 参数获取
+    const openId = searchParams.get('open_id') || undefined;
+    const userId = searchParams.get('user_id') || undefined;
+
     let feishuUserId = userId || openId;
-    
+
     if (!feishuUserId) {
       return NextResponse.json(
         { error: '无法识别用户身份' },

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Lock, Eye, EyeOff, Copy, Check, KeyRound, Search } from 'lucide-react';
+import { Eye, EyeOff, Copy, Check, KeyRound, Search } from 'lucide-react';
 
 interface UserInfo {
   user_id: string;
@@ -37,7 +37,20 @@ export default function HomePage() {
 
   async function fetchUserInfo() {
     try {
-      const response = await fetch('/api/feishu/user');
+      // 从 URL 参数获取飞书用户信息
+      const params = new URLSearchParams(window.location.search);
+      const openId = params.get('open_id') || params.get('openId');
+      const userId = params.get('user_id') || params.get('userId');
+      
+      // 构建查询参数
+      const queryParams = new URLSearchParams();
+      if (openId) queryParams.set('open_id', openId);
+      if (userId) queryParams.set('user_id', userId);
+
+      const queryString = queryParams.toString();
+      const url = queryString ? `/api/feishu/user?${queryString}` : '/api/feishu/user';
+
+      const response = await fetch(url);
       const data = await response.json();
       if (data.success) {
         setUserInfo(data.data);
@@ -72,10 +85,19 @@ export default function HomePage() {
 
     setResetLoading(true);
     try {
+      const params = new URLSearchParams(window.location.search);
+      const openId = params.get('open_id') || params.get('openId');
+      const userId = params.get('user_id') || params.get('userId');
+
       const response = await fetch('/api/ad/password/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword, confirmPassword }),
+        body: JSON.stringify({ 
+          newPassword, 
+          confirmPassword,
+          open_id: openId,
+          user_id: userId
+        }),
       });
       const data = await response.json();
       if (data.success) {
@@ -97,7 +119,18 @@ export default function HomePage() {
     setQueryResult(null);
     setShowQueryPassword(false);
     try {
-      const response = await fetch('/api/ad/password/query');
+      const params = new URLSearchParams(window.location.search);
+      const openId = params.get('open_id') || params.get('openId');
+      const userId = params.get('user_id') || params.get('userId');
+
+      const queryParams = new URLSearchParams();
+      if (openId) queryParams.set('open_id', openId);
+      if (userId) queryParams.set('user_id', userId);
+
+      const queryString = queryParams.toString();
+      const url = queryString ? `/api/ad/password/query?${queryString}` : '/api/ad/password/query';
+
+      const response = await fetch(url);
       const data = await response.json();
       if (data.success && data.data) {
         setQueryResult(data.data);
@@ -142,6 +175,9 @@ export default function HomePage() {
           <CardContent>
             <p className="text-sm text-gray-500">
               请确保从飞书应用入口访问此页面，并确认应用已配置正确的权限。
+            </p>
+            <p className="text-xs text-gray-400 mt-4">
+              当前URL: {typeof window !== 'undefined' ? window.location.href : ''}
             </p>
           </CardContent>
         </Card>

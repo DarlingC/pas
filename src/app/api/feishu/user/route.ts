@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserInfoByOpenId, getUserInfoByUserId, extractUserIdFromHeaders } from '@/lib/feishu';
+import { getUserInfoByOpenId, getUserInfoByUserId } from '@/lib/feishu';
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId, openId } = extractUserIdFromHeaders(request.headers);
+    const { searchParams } = new URL(request.url);
+    
+    // 优先从 URL 参数获取，其次从 headers 获取
+    const openId = searchParams.get('open_id') || request.headers.get('x-feishu-open-id') || undefined;
+    const userId = searchParams.get('user_id') || request.headers.get('x-feishu-user-id') || undefined;
 
     let userInfo = null;
 

@@ -1,23 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resetAdPassword } from '@/lib/ad';
 import { savePassword } from '@/lib/db';
-import { getUserInfoByOpenId, getUserInfoByUserId, extractUserIdFromHeaders } from '@/lib/feishu';
+import { getUserInfoByOpenId, getUserInfoByUserId } from '@/lib/feishu';
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, openId } = extractUserIdFromHeaders(request.headers);
+    const { searchParams } = new URL(request.url);
     
+    // 从 URL 参数获取
+    let openId = searchParams.get('open_id') || undefined;
+    let userId = searchParams.get('user_id') || undefined;
+    
+    const body = await request.json();
+    const { newPassword, confirmPassword, open_id, user_id } = body;
+
+    // 请求体中的参数优先级更高
+    if (open_id) openId = open_id;
+    if (user_id) userId = user_id;
+
     let feishuUserId = userId || openId;
-    
+
     if (!feishuUserId) {
       return NextResponse.json(
         { error: '无法识别用户身份' },
         { status: 400 }
       );
     }
-
-    const body = await request.json();
-    const { newPassword, confirmPassword } = body;
 
     if (!newPassword || !confirmPassword) {
       return NextResponse.json(
