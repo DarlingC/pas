@@ -29,4 +29,9 @@ def create_app():
     
     init_db()
     
+    # 主页路由
+    @app.route('/')
+    def index():
+        return app.send_static_file('index.html')
+    
     return app
