@@ -5,33 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AD 密码管理</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background-color: #f5f5f5;
             min-height: 100vh;
             padding: 32px 16px;
         }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 32px;
-        }
-        .header h1 {
-            font-size: 24px;
-            color: #1a1a1a;
-            margin-bottom: 8px;
-        }
-        .header .username {
-            color: #666;
-        }
+        .container { max-width: 600px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 32px; }
+        .header h1 { font-size: 24px; color: #1a1a1a; margin-bottom: 8px; }
+        .header .username { color: #666; }
         .card {
             background: white;
             border-radius: 12px;
@@ -39,31 +23,11 @@
             margin-bottom: 16px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        .card-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .card-desc {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 16px;
-        }
-        .form-group {
-            margin-bottom: 16px;
-        }
-        .form-group label {
-            display: block;
-            font-size: 14px;
-            color: #333;
-            margin-bottom: 6px;
-        }
-        .input-wrapper {
-            position: relative;
-        }
+        .card-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+        .card-desc { font-size: 14px; color: #666; margin-bottom: 16px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 14px; color: #333; margin-bottom: 6px; }
+        .input-wrapper { position: relative; }
         .form-group input {
             width: 100%;
             padding: 10px 40px 10px 12px;
@@ -73,9 +37,7 @@
             outline: none;
             transition: border-color 0.2s;
         }
-        .form-group input:focus {
-            border-color: #1890ff;
-        }
+        .form-group input:focus { border-color: #1890ff; }
         .toggle-btn {
             position: absolute;
             right: 12px;
@@ -87,9 +49,7 @@
             color: #999;
             font-size: 14px;
         }
-        .toggle-btn:hover {
-            color: #666;
-        }
+        .toggle-btn:hover { color: #666; }
         .btn {
             width: 100%;
             padding: 10px 16px;
@@ -99,50 +59,16 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        .btn-primary {
-            background-color: #1890ff;
-            color: white;
-        }
-        .btn-primary:hover {
-            background-color: #40a9ff;
-        }
-        .btn-primary:disabled {
-            background-color: #d9d9d9;
-            cursor: not-allowed;
-        }
-        .btn-outline {
-            background-color: white;
-            border: 1px solid #d9d9d9;
-            color: #333;
-        }
-        .btn-outline:hover {
-            border-color: #1890ff;
-            color: #1890ff;
-        }
-        .alert {
-            padding: 10px 12px;
-            border-radius: 6px;
-            font-size: 14px;
-            margin-bottom: 16px;
-        }
-        .alert-error {
-            background-color: #fff2f0;
-            border: 1px solid #ffccc7;
-            color: #ff4d4f;
-        }
-        .alert-success {
-            background-color: #f6ffed;
-            border: 1px solid #b7eb8f;
-            color: #52c41a;
-        }
-        .result-group {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        .result-group input {
-            flex: 1;
-        }
+        .btn-primary { background-color: #1890ff; color: white; }
+        .btn-primary:hover { background-color: #40a9ff; }
+        .btn-primary:disabled { background-color: #d9d9d9; cursor: not-allowed; }
+        .btn-outline { background-color: white; border: 1px solid #d9d9d9; color: #333; }
+        .btn-outline:hover { border-color: #1890ff; color: #1890ff; }
+        .alert { padding: 10px 12px; border-radius: 6px; font-size: 14px; margin-bottom: 16px; }
+        .alert-error { background-color: #fff2f0; border: 1px solid #ffccc7; color: #ff4d4f; }
+        .alert-success { background-color: #f6ffed; border: 1px solid #b7eb8f; color: #52c41a; }
+        .result-group { display: flex; gap: 8px; align-items: center; }
+        .result-group input { flex: 1; }
         .icon-btn {
             padding: 8px;
             background: white;
@@ -150,64 +76,32 @@
             border-radius: 6px;
             cursor: pointer;
             color: #666;
+            font-size: 12px;
         }
-        .icon-btn:hover {
-            border-color: #1890ff;
-            color: #1890ff;
-        }
-        .icon-btn.copied {
-            background-color: #f6ffed;
-            border-color: #b7eb8f;
-            color: #52c41a;
-        }
-        .loading {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 60vh;
-        }
+        .icon-btn:hover { border-color: #1890ff; color: #1890ff; }
+        .icon-btn.copied { background-color: #f6ffed; border-color: #b7eb8f; color: #52c41a; }
+        .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; }
         .spinner {
-            width: 48px;
-            height: 48px;
+            width: 48px; height: 48px;
             border: 3px solid #f3f3f3;
             border-top: 3px solid #1890ff;
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .loading p {
-            margin-top: 16px;
-            color: #666;
-        }
-        .error-page {
-            text-align: center;
-            padding: 48px 24px;
-        }
-        .error-page h2 {
-            color: #ff4d4f;
-            margin-bottom: 8px;
-        }
-        .error-page p {
-            color: #666;
-            font-size: 14px;
-        }
-        .error-page .hint {
-            margin-top: 16px;
-            padding: 12px;
-            background: #f5f5f5;
-            border-radius: 6px;
-            font-size: 12px;
-            color: #999;
-        }
-        .update-time {
-            font-size: 12px;
-            color: #999;
-            margin-top: 8px;
-        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading p { margin-top: 16px; color: #666; }
+        .error-page { text-align: center; padding: 48px 24px; }
+        .error-page h2 { color: #ff4d4f; margin-bottom: 8px; }
+        .error-page p { color: #666; font-size: 14px; }
+        .hint { margin-top: 16px; padding: 12px; background: #f5f5f5; border-radius: 6px; font-size: 12px; color: #999; }
+        .update-time { font-size: 12px; color: #999; margin-top: 8px; }
+        
+        /* 调试信息样式 */
+        .debug-card { background: #f0f9ff; border-color: #1890ff; }
+        .debug-title { color: #1890ff; }
+        .debug-field { font-size: 12px; margin: 4px 0; }
+        .debug-field strong { color: #333; }
+        .debug-raw { margin-top: 12px; font-size: 10px; background: #f5f5f5; padding: 8px; border-radius: 4px; overflow: auto; max-height: 200px; white-space: pre-wrap; word-break: break-all; }
     </style>
 </head>
 <body>
@@ -222,9 +116,9 @@
     
     <script>
         const API_BASE = '/pas';
-        
+
         let currentUser = null;
-        
+
         // 等待 JSSDK 加载
         function waitForSDK(maxWait = 5000) {
             return new Promise((resolve) => {
@@ -241,14 +135,13 @@
                 check();
             });
         }
-        
+
         // 获取飞书用户信息
         async function getFeishuUser() {
             const sdkReady = await waitForSDK();
             
             if (sdkReady) {
                 try {
-                    // 获取 app_id
                     const appidRes = await fetch(API_BASE + '/api/feishu/appid');
                     const appidData = await appidRes.json();
                     
@@ -256,30 +149,18 @@
                         throw new Error('无法获取应用ID');
                     }
                     
-                    // 调用 JSSDK 获取授权码
                     const code = await new Promise((resolve, reject) => {
                         window.h5sdk.ready(() => {
-                            console.log('h5sdk ready');
                             window.tt.requestAccess({
                                 appID: appidData.appid,
                                 scopeList: [],
-                                success: (res) => {
-                                    console.log('requestAccess success:', res);
-                                    resolve(res.code);
-                                },
-                                fail: (err) => {
-                                    console.error('requestAccess fail:', err);
-                                    reject(new Error('requestAccess 失败: ' + JSON.stringify(err)));
-                                }
+                                success: (res) => resolve(res.code),
+                                fail: (err) => reject(new Error('requestAccess 失败'))
                             });
                         });
-                        window.h5sdk.error((err) => {
-                            console.error('h5sdk error:', err);
-                            reject(new Error('h5sdk 初始化失败: ' + JSON.stringify(err)));
-                        });
+                        window.h5sdk.error((err) => reject(new Error('h5sdk 初始化失败')));
                     });
                     
-                    // 用 code 获取用户信息
                     const userRes = await fetch(API_BASE + '/api/feishu/user?code=' + code);
                     const userData = await userRes.json();
                     
@@ -289,51 +170,34 @@
                         throw new Error(userData.error || '获取用户信息失败');
                     }
                 } catch (err) {
-                    console.error('飞书授权失败:', err);
                     throw err;
                 }
             } else {
                 throw new Error('飞书 SDK 未加载，请在飞书应用内打开');
             }
         }
-        
-        // 显示加载中
+
         function showLoading() {
-            document.getElementById('app').innerHTML = `
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <p>加载中...</p>
-                </div>
-            `;
+            document.getElementById('app').innerHTML = '<div class="loading"><div class="spinner"></div><p>加载中...</p></div>';
         }
-        
-        // 显示错误
+
         function showError(message) {
-            document.getElementById('app').innerHTML = `
-                <div class="container">
-                    <div class="card error-page">
-                        <h2>出错了</h2>
-                        <p>${message}</p>
-                        <div class="hint">
-                            请确保从飞书应用入口访问此页面
-                        </div>
-                    </div>
-                </div>
-            `;
+            document.getElementById('app').innerHTML = '<div class="container"><div class="card error-page"><h2>出错了</h2><p>' + message + '</p><div class="hint">请确保从飞书应用入口访问此页面</div></div></div>';
         }
-        
-        // 显示主页
+
         function showHome(user) {
             currentUser = user;
-            // 调试信息：显示所有用户字段
-            console.log('当前用户信息:', user);
-            const userInfoHtml = Object.entries(user).map(([key, value]) => {
-                if (key === '_raw') return ''; // 跳过原始数据
-                return `<div><strong>${key}:</strong> ${value || '(空)'}</div>`;
-            }).join('');
             
-            // 显示原始数据
-            const rawHtml = user._raw ? `<pre style="font-size:10px;overflow:auto;max-height:200px;background:#f5f5f5;padding:8px;border-radius:4px;">${JSON.stringify(user._raw, null, 2)}</pre>` : '';
+            // 调试信息
+            const debugFields = Object.entries(user)
+                .filter(([key]) => key !== '_raw')
+                .map(([key, value]) => '<div class="debug-field"><strong>' + key + ':</strong> ' + (value || '(空)') + '</div>')
+                .join('');
+            
+            const rawData = user._raw ? '<div class="debug-raw">' + JSON.stringify(user._raw, null, 2) + '</div>' : '';
+            
+            // AD 用户名（从邮箱提取）
+            const adUsername = user.email ? user.email.split('@')[0] : '';
             
             document.getElementById('app').innerHTML = `
                 <div class="container">
@@ -343,25 +207,22 @@
                     </div>
                     
                     <!-- 调试信息 -->
-                    <div class="card" style="background:#f0f9ff;border-color:#1890ff;">
-                        <div class="card-title" style="color:#1890ff;">调试信息 - 用户字段</div>
-                        <div class="card-desc" style="font-size:12px;color:#666;">以下是你当前账户的所有字段，请告诉我哪个字段对应你的AD用户名</div>
-                        <div style="margin-top:12px;font-size:12px;">${userInfoHtml}</div>
-                        ${rawHtml ? '<div style="margin-top:12px;"><strong>原始数据:</strong></div>' + rawHtml : ''}
+                    <div class="card debug-card">
+                        <div class="card-title debug-title">调试信息</div>
+                        <div class="card-desc">AD 用户名将自动使用邮箱前缀: <strong>${adUsername || '(无邮箱)'}</strong></div>
+                        ${debugFields}
+                        ${rawData ? '<div class="debug-raw">' + JSON.stringify(user._raw || {}, null, 2) + '</div>' : ''}
                     </div>
                     
                     <div class="card">
                         <div class="card-title">重置密码</div>
-                        <div class="card-desc">输入 AD 用户名和新密码</div>
-                        
+                        <div class="card-desc">输入新密码并确认，密码将同步更新到 AD 域</div>
                         <div id="reset-alert"></div>
-                        
                         <form id="reset-form">
                             <div class="form-group">
                                 <label>AD 用户名</label>
-                                <input type="text" id="ad-username" placeholder="请输入 AD 用户名（邮箱前缀）">
+                                <input type="text" value="${adUsername}" readonly>
                             </div>
-                            
                             <div class="form-group">
                                 <label>新密码</label>
                                 <div class="input-wrapper">
@@ -369,7 +230,6 @@
                                     <button type="button" class="toggle-btn" onclick="togglePassword('new-password')">显示</button>
                                 </div>
                             </div>
-                            
                             <div class="form-group">
                                 <label>确认密码</label>
                                 <div class="input-wrapper">
@@ -377,34 +237,25 @@
                                     <button type="button" class="toggle-btn" onclick="togglePassword('confirm-password')">显示</button>
                                 </div>
                             </div>
-                            
                             <button type="submit" class="btn btn-primary" id="reset-btn">重置密码</button>
                         </form>
                     </div>
                     
                     <div class="card">
                         <div class="card-title">查询密码</div>
-                        <div class="card-desc">输入 AD 用户名查询已存储的密码</div>
-                        
-                        <div class="form-group">
-                            <input type="text" id="query-username" placeholder="请输入 AD 用户名">
-                        </div>
-                        
+                        <div class="card-desc">查询您已存储的 AD 密码</div>
                         <button class="btn btn-outline" id="query-btn" onclick="queryPassword()">查询密码</button>
-                        
                         <div id="query-result"></div>
                     </div>
                 </div>
             `;
             
-            // 表单提交
             document.getElementById('reset-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 await resetPassword();
             });
         }
-        
-        // 切换密码显示
+
         function togglePassword(id) {
             const input = document.getElementById(id);
             const btn = input.nextElementSibling;
@@ -416,21 +267,14 @@
                 btn.textContent = '显示';
             }
         }
-        
-        // 重置密码
+
         async function resetPassword() {
-            const adUsername = document.getElementById('ad-username').value;
             const newPassword = document.getElementById('new-password').value;
             const confirmPassword = document.getElementById('confirm-password').value;
             const btn = document.getElementById('reset-btn');
             const alert = document.getElementById('reset-alert');
             
             alert.innerHTML = '';
-            
-            if (!adUsername) {
-                alert.innerHTML = '<div class="alert alert-error">请输入 AD 用户名</div>';
-                return;
-            }
             
             if (!newPassword || !confirmPassword) {
                 alert.innerHTML = '<div class="alert alert-error">请填写所有字段</div>';
@@ -457,9 +301,9 @@
                     body: JSON.stringify({
                         newPassword,
                         confirmPassword,
-                        ad_username: adUsername,
+                        user_id: currentUser.user_id,
                         user_name: currentUser.name,
-                        open_id: currentUser.user_id
+                        email: currentUser.email
                     })
                 });
                 
@@ -470,7 +314,7 @@
                     document.getElementById('new-password').value = '';
                     document.getElementById('confirm-password').value = '';
                 } else {
-                    alert.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+                    alert.innerHTML = '<div class="alert alert-error">' + data.error + '</div>';
                 }
             } catch (err) {
                 alert.innerHTML = '<div class="alert alert-error">请求失败，请稍后重试</div>';
@@ -479,24 +323,17 @@
                 btn.textContent = '重置密码';
             }
         }
-        
-        // 查询密码
+
         async function queryPassword() {
-            const adUsername = document.getElementById('query-username').value;
             const btn = document.getElementById('query-btn');
             const resultDiv = document.getElementById('query-result');
-            
-            if (!adUsername) {
-                resultDiv.innerHTML = '<div class="alert alert-error">请输入 AD 用户名</div>';
-                return;
-            }
             
             btn.disabled = true;
             btn.textContent = '查询中...';
             resultDiv.innerHTML = '';
             
             try {
-                const res = await fetch(API_BASE + '/api/ad/password/query?ad_username=' + encodeURIComponent(adUsername));
+                const res = await fetch(API_BASE + '/api/ad/password/query?user_id=' + encodeURIComponent(currentUser.user_id));
                 const data = await res.json();
                 
                 if (data.success && data.data) {
@@ -527,8 +364,7 @@
                 btn.textContent = '查询密码';
             }
         }
-        
-        // 切换查询密码显示
+
         function toggleQueryPassword() {
             const input = document.getElementById('query-password');
             const btn = input.nextElementSibling;
@@ -540,8 +376,7 @@
                 btn.textContent = '显';
             }
         }
-        
-        // 复制密码
+
         async function copyPassword() {
             const input = document.getElementById('query-password');
             const btn = document.getElementById('copy-btn');
@@ -558,18 +393,17 @@
                 console.error('复制失败:', err);
             }
         }
-        
-        // 初始化
+
         async function init() {
             try {
+                showLoading();
                 const user = await getFeishuUser();
                 showHome(user);
             } catch (err) {
-                console.error('初始化失败:', err);
                 showError(err.message || '获取用户信息失败');
             }
         }
-        
+
         init();
     </script>
 </body>

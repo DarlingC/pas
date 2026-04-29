@@ -1,5 +1,5 @@
 import os
-from flask import Flask, g
+from flask import Flask
 
 def create_app():
     app = Flask(__name__, static_folder='../public', static_url_path='')
@@ -20,14 +20,12 @@ def create_app():
     app.register_blueprint(routes.bp)
     
     # 数据库初始化
-    from app.models import init_db
+    from app.models import init_db, close_db
+    init_db()
     
     @app.teardown_appcontext
-    def close_db(exception):
-        from app.models import close_db as _close_db
-        _close_db()
-    
-    init_db()
+    def teardown_db(exception):
+        close_db(exception)
     
     # 主页路由
     @app.route('/')
