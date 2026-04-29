@@ -259,14 +259,24 @@
                     // 调用 JSSDK 获取授权码
                     const code = await new Promise((resolve, reject) => {
                         window.h5sdk.ready(() => {
+                            console.log('h5sdk ready');
                             window.tt.requestAccess({
                                 appID: appidData.appid,
                                 scopeList: [],
-                                success: (res) => resolve(res.code),
-                                fail: (err) => reject(err)
+                                success: (res) => {
+                                    console.log('requestAccess success:', res);
+                                    resolve(res.code);
+                                },
+                                fail: (err) => {
+                                    console.error('requestAccess fail:', err);
+                                    reject(new Error('requestAccess 失败: ' + JSON.stringify(err)));
+                                }
                             });
                         });
-                        window.h5sdk.error((err) => reject(err));
+                        window.h5sdk.error((err) => {
+                            console.error('h5sdk error:', err);
+                            reject(new Error('h5sdk 初始化失败: ' + JSON.stringify(err)));
+                        });
                     });
                     
                     // 用 code 获取用户信息
