@@ -2,6 +2,7 @@ import os
 import sqlite3
 from datetime import datetime
 from functools import wraps
+import requests
 from flask import Flask, request, jsonify, g
 
 app = Flask(__name__, static_folder='../public', static_url_path='')
@@ -65,7 +66,7 @@ def get_appid():
 def get_user_info():
     """通过 code 获取用户信息（飞书 JSSDK 授权）"""
     code = request.args.get('code')
-    
+
     if code:
         try:
             # 获取 app_access_token
@@ -75,12 +76,12 @@ def get_user_info():
                 'app_secret': FEISHU_APP_SECRET
             }, timeout=10)
             token_data = token_response.json()
-            
+
             if token_data.get('code') != 0:
                 return jsonify({'error': '获取access_token失败'}), 401
-            
+
             app_access_token = token_data.get('tenant_access_token')
-            
+
             # 用 code 换取 user_access_token
             user_token_url = 'https://open.feishu.cn/open-apis/authen/v1/oidc/access_token'
             user_token_response = requests.post(user_token_url, headers={
@@ -91,21 +92,21 @@ def get_user_info():
                 'code': code
             }, timeout=10)
             user_token_data = user_token_response.json()
-            
+
             if user_token_data.get('code') != 0:
                 return jsonify({'error': user_token_data.get('msg', '换取user_access_token失败')}), 401
-            
+
             user_access_token = user_token_data.get('data', {}).get('access_token')
             if not user_access_token:
                 return jsonify({'error': '未获取到user_access_token'}), 401
-            
+
             # 获取用户信息
             user_info_url = 'https://open.feishu.cn/open-apis/authen/v1/user_info'
             user_info_response = requests.get(user_info_url, headers={
                 'Authorization': f'Bearer {user_access_token}'
             }, timeout=10)
             user_info_data = user_info_response.json()
-            
+
             if user_info_data.get('code') == 0 and user_info_data.get('data'):
                 user = user_info_data['data']
                 return jsonify({
@@ -117,13 +118,13 @@ def get_user_info():
                         'email': user.get('email')
                     }
                 })
-            
+
             return jsonify({'error': '获取用户信息失败'}), 401
-            
+
         except Exception as e:
             print(f'获取用户信息错误: {e}')
             return jsonify({'error': str(e)}), 500
-    
+
     return jsonify({'error': '缺少授权码'}), 400
 
 # ==================== AD 密码相关接口 ====================
@@ -136,43 +137,43 @@ def reset_password():
     confirm_password = data.get('confirmPassword')
     user_id = data.get('user_id')
     user_name = data.get('user_name')
-    
+
     if not new_password or not confirm_password:
         return jsonify({'error': '请填写新密码和确认密码'}), 400
-    
+
     if new_password != confirm_password:
         return jsonify({'error': '两次输入的密码不一致'}), 400
-    
+
     if len(new_password) < 8:
         return jsonify({'error': '密码长度不能少于8位'}), 400
-    
+
     if not user_id:
         return jsonify({'error': '无法识别用户身份'}), 400
-    
+
     # 调用 AD 修改密码
     result = ad_reset_password(user_id, new_password)
-    
+
     if not result['success']:
         return jsonify({'error': result['message']}), 500
-    
+
     # 保存密码到数据库
     save_password(user_id, user_name, new_password)
-    
+
     return jsonify({'success': True, 'message': '密码重置成功'})
 
 @app.route('/api/ad/password/query', methods=['GET'])
 def query_password():
     """查询已存储的密码"""
     user_id = request.args.get('user_id')
-    
+
     if not user_id:
         return jsonify({'error': '无法识别用户身份'}), 400
-    
+
     record = get_password(user_id)
-    
+
     if not record:
         return jsonify({'success': False, 'message': '未找到已存储的密码', 'data': None})
-    
+
     return jsonify({
         'success': True,
         'data': {
@@ -198,35 +199,35 @@ def ad_reset_password(user_id: str, new_password: str) -> dict:
     try:
         from ldap3 import Server, Connection, ALL, MODIFY_REPLACE
         from ldap3.core.exceptions import LDAPException
-        
+
         server = Server(AD_LDAP_URL, get_info=ALL)
-        
+
         conn = Connection(server, user=AD_ADMIN_DN, password=AD_ADMIN_PASSWORD, auto_bind=True)
-        
+
         # 搜索用户
         search_filter = f'(|(sAMAccountName={user_id})(userPrincipalName={user_id}*))'
         conn.search(AD_BASE_DN, search_filter, attributes=['distinguishedName'])
-        
+
         if not conn.entries:
             conn.unbind()
             return {'success': False, 'message': '未找到AD用户'}
-        
+
         user_dn = conn.entries[0].distinguishedName.values[0]
-        
+
         # 修改密码 (使用 unicodePwd)
         password_value = f'"{new_password}"'.encode('utf-16-le')
-        
+
         conn.modify(user_dn, {
             'unicodePwd': [(MODIFY_REPLACE, [password_value])]
         })
-        
+
         conn.unbind()
-        
+
         if conn.result['result'] == 0:
             return {'success': True, 'message': '密码修改成功'}
         else:
             return {'success': False, 'message': f'密码修改失败: {conn.result}'}
-            
+
     except LDAPException as e:
         return {'success': False, 'message': f'LDAP错误: {str(e)}'}
     except Exception as e:
@@ -267,9 +268,9 @@ def index():
 
 if __name__ == '__main__':
     init_db()
-    
+
     host = os.getenv('FLASK_HOST', '0.0.0.0')
     port = int(os.getenv('FLASK_PORT', 5002))
-    
+
     print(f'启动服务: http://{host}:{port}')
     app.run(host=host, port=port, debug=False)

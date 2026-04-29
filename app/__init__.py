@@ -1,37 +1,17 @@
 import os
-from flask import Flask, g
+from dotenv import load_dotenv
 
+# 加载环境变量
+load_dotenv()
+
+# 从 app.py 导入 Flask 应用实例
+from app.app import app
+
+# 初始化数据库
+from app.app import init_db
+init_db()
+
+# 导出应用实例
 def create_app():
-    app = Flask(__name__, static_folder='../public', static_url_path='')
-    
-    # 加载配置
-    from dotenv import load_dotenv
-    load_dotenv()
-    
-    app.config['AD_LDAP_URL'] = os.getenv('AD_LDAP_URL', 'ldap://domain.com:389')
-    app.config['AD_BASE_DN'] = os.getenv('AD_BASE_DN', 'DC=domain,DC=com')
-    app.config['AD_ADMIN_DN'] = os.getenv('AD_ADMIN_DN', 'CN=Admin,CN=Users,DC=domain,DC=com')
-    app.config['AD_ADMIN_PASSWORD'] = os.getenv('AD_ADMIN_PASSWORD', '')
-    app.config['FEISHU_APP_ID'] = os.getenv('FEISHU_APP_ID', '')
-    app.config['FEISHU_APP_SECRET'] = os.getenv('FEISHU_APP_SECRET', '')
-    
-    # 注册路由
-    from app import routes
-    app.register_blueprint(routes.bp)
-    
-    # 数据库初始化
-    from app.models import init_db
-    
-    @app.teardown_appcontext
-    def close_db(exception):
-        from app.models import close_db as _close_db
-        _close_db()
-    
-    init_db()
-    
-    # 主页路由
-    @app.route('/')
-    def index():
-        return app.send_static_file('index.html')
-    
+    """保持兼容性的工厂函数"""
     return app
