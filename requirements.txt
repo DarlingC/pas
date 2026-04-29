@@ -1,5 +1,9 @@
+# Flask
 Flask==3.0.0
-ldap3==2.9.1
-better-sqlite3==9.4.3
 python-dotenv==1.0.0
+
+# LDAP
+ldap3==2.9.1
+
+# HTTP 请求
 requests==2.31.0
