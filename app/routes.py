@@ -56,11 +56,13 @@ def get_user_info():
     """通过 code 获取用户信息（飞书 JSSDK 授权）"""
     import requests
     code = request.args.get('code')
+    print(f'收到 code: {code}')
     
     if code:
         try:
             app_id = current_app.config.get('FEISHU_APP_ID')
             app_secret = current_app.config.get('FEISHU_APP_SECRET')
+            print(f'app_id: {app_id}')
             
             # 获取 app_access_token
             token_url = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal'
@@ -69,6 +71,7 @@ def get_user_info():
                 'app_secret': app_secret
             }, timeout=10)
             token_data = token_response.json()
+            print(f'token_data: {token_data}')
             
             if token_data.get('code') != 0:
                 return jsonify({'error': '获取access_token失败'}), 401
@@ -85,6 +88,7 @@ def get_user_info():
                 'code': code
             }, timeout=10)
             user_token_data = user_token_response.json()
+            print(f'user_token_data: {user_token_data}')
             
             if user_token_data.get('code') != 0:
                 return jsonify({'error': user_token_data.get('msg', '换取user_access_token失败')}), 401
