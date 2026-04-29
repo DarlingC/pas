@@ -132,8 +132,9 @@ def reset_password():
     data = request.get_json()
     new_password = data.get('newPassword')
     confirm_password = data.get('confirmPassword')
-    user_id = data.get('user_id')
+    ad_username = data.get('ad_username')
     user_name = data.get('user_name')
+    open_id = data.get('open_id')
     
     if not new_password or not confirm_password:
         return jsonify({'error': '请填写新密码和确认密码'}), 400
@@ -144,31 +145,32 @@ def reset_password():
     if len(new_password) < 8:
         return jsonify({'error': '密码长度不能少于8位'}), 400
     
-    if not user_id:
-        return jsonify({'error': '无法识别用户身份'}), 400
+    if not ad_username:
+        return jsonify({'error': '请输入 AD 用户名'}), 400
     
     # 调用 AD 修改密码
     from app.models import ad_reset_password, save_password
-    result = ad_reset_password(user_id, new_password)
+    result = ad_reset_password(ad_username, new_password)
     
     if not result['success']:
         return jsonify({'error': result['message']}), 500
     
     # 保存密码到数据库
-    save_password(user_id, user_name, new_password)
+    if open_id:
+        save_password(open_id, ad_username, user_name, new_password)
     
     return jsonify({'success': True, 'message': '密码重置成功'})
 
 @bp.route('/ad/password/query', methods=['GET'])
 def query_password():
     """查询已存储的密码"""
-    user_id = request.args.get('user_id')
+    ad_username = request.args.get('ad_username')
     
-    if not user_id:
-        return jsonify({'error': '无法识别用户身份'}), 400
+    if not ad_username:
+        return jsonify({'error': '请输入 AD 用户名'}), 400
     
-    from app.models import get_password
-    record = get_password(user_id)
+    from app.models import get_password_by_username
+    record = get_password_by_username(ad_username)
     
     if not record:
         return jsonify({'success': False, 'message': '未找到已存储的密码', 'data': None})
