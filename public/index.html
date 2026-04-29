@@ -325,11 +325,24 @@
         // 显示主页
         function showHome(user) {
             currentUser = user;
+            // 调试信息：显示所有用户字段
+            console.log('当前用户信息:', user);
+            const userInfoHtml = Object.entries(user).map(([key, value]) => 
+                `<div><strong>${key}:</strong> ${value || '(空)'}</div>`
+            ).join('');
+            
             document.getElementById('app').innerHTML = `
                 <div class="container">
                     <div class="header">
                         <h1>AD 密码管理</h1>
                         <p class="username">欢迎，${user.name || user.en_name || '用户'}</p>
+                    </div>
+                    
+                    <!-- 调试信息 -->
+                    <div class="card" style="background:#f0f9ff;border-color:#1890ff;">
+                        <div class="card-title" style="color:#1890ff;">调试信息 - 用户字段</div>
+                        <div class="card-desc" style="font-size:12px;color:#666;">以下是你当前账户的所有字段，请告诉我哪个字段对应你的AD用户名</div>
+                        <div style="margin-top:12px;font-size:12px;">${userInfoHtml}</div>
                     </div>
                     
                     <div class="card">
