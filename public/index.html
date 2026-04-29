@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AD 密码管理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            min-height: 100vh;
+            padding: 32px 16px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .header h1 {
+            font-size: 24px;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+        .header .username {
+            color: #666;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card-desc {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 16px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 6px;
+        }
+        .input-wrapper {
+            position: relative;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px 40px 10px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus {
+            border-color: #1890ff;
+        }
+        .toggle-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #999;
+            font-size: 14px;
+        }
+        .toggle-btn:hover {
+            color: #666;
+        }
+        .btn {
+            width: 100%;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background-color: #1890ff;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #40a9ff;
+        }
+        .btn-primary:disabled {
+            background-color: #d9d9d9;
+            cursor: not-allowed;
+        }
+        .btn-outline {
+            background-color: white;
+            border: 1px solid #d9d9d9;
+            color: #333;
+        }
+        .btn-outline:hover {
+            border-color: #1890ff;
+            color: #1890ff;
+        }
+        .alert {
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+        .alert-error {
+            background-color: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #ff4d4f;
+        }
+        .alert-success {
+            background-color: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #52c41a;
+        }
+        .result-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .result-group input {
+            flex: 1;
+        }
+        .icon-btn {
+            padding: 8px;
+            background: white;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            cursor: pointer;
+            color: #666;
+        }
+        .icon-btn:hover {
+            border-color: #1890ff;
+            color: #1890ff;
+        }
+        .icon-btn.copied {
+            background-color: #f6ffed;
+            border-color: #b7eb8f;
+            color: #52c41a;
+        }
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+        }
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #1890ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading p {
+            margin-top: 16px;
+            color: #666;
+        }
+        .error-page {
+            text-align: center;
+            padding: 48px 24px;
+        }
+        .error-page h2 {
+            color: #ff4d4f;
+            margin-bottom: 8px;
+        }
+        .error-page p {
+            color: #666;
+            font-size: 14px;
+        }
+        .error-page .hint {
+            margin-top: 16px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #999;
+        }
+        .update-time {
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>加载中...</p>
+        </div>
+    </div>
+
+    <script src="https://lf1-cdn-tos.bytegoofy.com/goofy/lark/op/h5-js-sdk-1.5.26.js"></script>
+    
+    <script>
+        const API_BASE = '';
+        
+        let currentUser = null;
+        
+        // 等待 JSSDK 加载
+        function waitForSDK(maxWait = 5000) {
+            return new Promise((resolve) => {
+                const startTime = Date.now();
+                const check = () => {
+                    if (window.h5sdk && window.tt) {
+                        resolve(true);
+                    } else if (Date.now() - startTime < maxWait) {
+                        setTimeout(check, 100);
+                    } else {
+                        resolve(false);
+                    }
+                };
+                check();
+            });
+        }
+        
+        // 获取飞书用户信息
+        async function getFeishuUser() {
+            const sdkReady = await waitForSDK();
+            
+            if (sdkReady) {
+                try {
+                    // 获取 app_id
+                    const appidRes = await fetch(API_BASE + '/api/feishu/appid');
+                    const appidData = await appidRes.json();
+                    
+                    if (!appidData.appid) {
+                        throw new Error('无法获取应用ID');
+                    }
+                    
+                    // 调用 JSSDK 获取授权码
+                    const code = await new Promise((resolve, reject) => {
+                        window.h5sdk.ready(() => {
+                            window.tt.requestAccess({
+                                appID: appidData.appid,
+                                scopeList: [],
+                                success: (res) => resolve(res.code),
+                                fail: (err) => reject(err)
+                            });
+                        });
+                        window.h5sdk.error((err) => reject(err));
+                    });
+                    
+                    // 用 code 获取用户信息
+                    const userRes = await fetch(API_BASE + '/api/feishu/user?code=' + code);
+                    const userData = await userRes.json();
+                    
+                    if (userData.success) {
+                        return userData.data;
+                    } else {
+                        throw new Error(userData.error || '获取用户信息失败');
+                    }
+                } catch (err) {
+                    console.error('飞书授权失败:', err);
+                    throw err;
+                }
+            } else {
+                throw new Error('飞书 SDK 未加载，请在飞书应用内打开');
+            }
+        }
+        
+        // 显示加载中
+        function showLoading() {
+            document.getElementById('app').innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>加载中...</p>
+                </div>
+            `;
+        }
+        
+        // 显示错误
+        function showError(message) {
+            document.getElementById('app').innerHTML = `
+                <div class="container">
+                    <div class="card error-page">
+                        <h2>出错了</h2>
+                        <p>${message}</p>
+                        <div class="hint">
+                            请确保从飞书应用入口访问此页面
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 显示主页
+        function showHome(user) {
+            currentUser = user;
+            document.getElementById('app').innerHTML = `
+                <div class="container">
+                    <div class="header">
+                        <h1>AD 密码管理</h1>
+                        <p class="username">欢迎，${user.name || user.en_name || '用户'}</p>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-title">重置密码</div>
+                        <div class="card-desc">输入新密码并确认，密码将同步更新到 AD 域</div>
+                        
+                        <div id="reset-alert"></div>
+                        
+                        <form id="reset-form">
+                            <div class="form-group">
+                                <label>新密码</label>
+                                <div class="input-wrapper">
+                                    <input type="password" id="new-password" placeholder="请输入新密码（至少8位）">
+                                    <button type="button" class="toggle-btn" onclick="togglePassword('new-password')">显示</button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>确认密码</label>
+                                <div class="input-wrapper">
+                                    <input type="password" id="confirm-password" placeholder="请再次输入新密码">
+                                    <button type="button" class="toggle-btn" onclick="togglePassword('confirm-password')">显示</button>
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary" id="reset-btn">重置密码</button>
+                        </form>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-title">查询密码</div>
+                        <div class="card-desc">查询您已存储的 AD 密码</div>
+                        
+                        <button class="btn btn-outline" id="query-btn" onclick="queryPassword()">查询密码</button>
+                        
+                        <div id="query-result"></div>
+                    </div>
+                </div>
+            `;
+            
+            // 表单提交
+            document.getElementById('reset-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await resetPassword();
+            });
+        }
+        
+        // 切换密码显示
+        function togglePassword(id) {
+            const input = document.getElementById(id);
+            const btn = input.nextElementSibling;
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.textContent = '隐藏';
+            } else {
+                input.type = 'password';
+                btn.textContent = '显示';
+            }
+        }
+        
+        // 重置密码
+        async function resetPassword() {
+            const newPassword = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            const btn = document.getElementById('reset-btn');
+            const alert = document.getElementById('reset-alert');
+            
+            alert.innerHTML = '';
+            
+            if (!newPassword || !confirmPassword) {
+                alert.innerHTML = '<div class="alert alert-error">请填写所有字段</div>';
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                alert.innerHTML = '<div class="alert alert-error">两次输入的密码不一致</div>';
+                return;
+            }
+            
+            if (newPassword.length < 8) {
+                alert.innerHTML = '<div class="alert alert-error">密码长度不能少于8位</div>';
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = '处理中...';
+            
+            try {
+                const res = await fetch(API_BASE + '/api/ad/password/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        newPassword,
+                        confirmPassword,
+                        user_id: currentUser.user_id,
+                        user_name: currentUser.name
+                    })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    alert.innerHTML = '<div class="alert alert-success">密码重置成功</div>';
+                    document.getElementById('new-password').value = '';
+                    document.getElementById('confirm-password').value = '';
+                } else {
+                    alert.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+                }
+            } catch (err) {
+                alert.innerHTML = '<div class="alert alert-error">请求失败，请稍后重试</div>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '重置密码';
+            }
+        }
+        
+        // 查询密码
+        async function queryPassword() {
+            const btn = document.getElementById('query-btn');
+            const resultDiv = document.getElementById('query-result');
+            
+            btn.disabled = true;
+            btn.textContent = '查询中...';
+            resultDiv.innerHTML = '';
+            
+            try {
+                const res = await fetch(API_BASE + '/api/ad/password/query?user_id=' + encodeURIComponent(currentUser.user_id));
+                const data = await res.json();
+                
+                if (data.success && data.data) {
+                    const p = data.data;
+                    const updateTime = new Date(p.updatedAt).toLocaleString('zh-CN');
+                    resultDiv.innerHTML = `
+                        <div style="margin-top: 16px;">
+                            <div class="form-group">
+                                <label>已存储的密码</label>
+                                <div class="result-group">
+                                    <div class="input-wrapper" style="flex:1">
+                                        <input type="password" id="query-password" value="${p.password}" readonly>
+                                    </div>
+                                    <button type="button" class="icon-btn" onclick="toggleQueryPassword()">显</button>
+                                    <button type="button" class="icon-btn" id="copy-btn" onclick="copyPassword()">复</button>
+                                </div>
+                            </div>
+                            <div class="update-time">最后更新时间：${updateTime}</div>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = '<div class="alert alert-error">' + (data.error || '未找到已存储的密码') + '</div>';
+                }
+            } catch (err) {
+                resultDiv.innerHTML = '<div class="alert alert-error">查询失败，请稍后重试</div>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '查询密码';
+            }
+        }
+        
+        // 切换查询密码显示
+        function toggleQueryPassword() {
+            const input = document.getElementById('query-password');
+            const btn = input.nextElementSibling;
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.textContent = '隐';
+            } else {
+                input.type = 'password';
+                btn.textContent = '显';
+            }
+        }
+        
+        // 复制密码
+        async function copyPassword() {
+            const input = document.getElementById('query-password');
+            const btn = document.getElementById('copy-btn');
+            
+            try {
+                await navigator.clipboard.writeText(input.value);
+                btn.textContent = '已复制';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = '复';
+                    btn.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                console.error('复制失败:', err);
+            }
+        }
+        
+        // 初始化
+        async function init() {
+            try {
+                const user = await getFeishuUser();
+                showHome(user);
+            } catch (err) {
+                console.error('初始化失败:', err);
+                showError(err.message || '获取用户信息失败');
+            }
+        }
+        
+        init();
+    </script>
+</body>
+</html>
