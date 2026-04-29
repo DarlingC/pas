@@ -103,16 +103,23 @@ def get_user_info():
                 'Authorization': f'Bearer {user_access_token}'
             }, timeout=10)
             user_info_data = user_info_response.json()
+            print(f'user_info_data: {user_info_data}')
             
             if user_info_data.get('code') == 0 and user_info_data.get('data'):
                 user = user_info_data['data']
+                # 返回完整的用户信息用于调试
                 return jsonify({
                     'success': True,
                     'data': {
                         'user_id': user.get('open_id') or user.get('user_id') or '',
+                        'union_id': user.get('union_id'),
                         'name': user.get('name') or '',
                         'en_name': user.get('en_name'),
-                        'email': user.get('email')
+                        'email': user.get('email'),
+                        'mobile': user.get('mobile'),
+                        'avatar_url': user.get('avatar_url'),
+                        # 保存原始数据用于调试
+                        '_raw': user
                     }
                 })
             
