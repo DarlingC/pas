@@ -275,10 +275,7 @@ def ad_reset_password(user_account: str, new_password: str) -> dict:
                 print(f'LDAP STARTTLS 失败（可能不支持）: {tls_err}')
 
         # 搜索用户
-        search_filter = (
-            f'(|(sAMAccountName={user_account})'
-            f'(userPrincipalName={user_account}*))'
-        )
+        search_filter = (f'(|(sAMAccountName={user_account})')
         conn.search(AD_BASE_DN, search_filter, attributes=['distinguishedName'])
 
         if not conn.entries:
