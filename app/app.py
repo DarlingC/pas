@@ -103,19 +103,26 @@ def get_user_info():
             # 获取用户信息
             user_info_url = 'https://open.feishu.cn/open-apis/authen/v1/user_info'
             user_info_response = requests.get(user_info_url, headers={
-                'Authorization': f'Bearer {user_access_token}'
-            }, timeout=10)
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {user_access_token}'})
             user_info_data = user_info_response.json()
+            print(f'飞书用户信息原始数据: {user_info_data}')
 
             if user_info_data.get('code') == 0 and user_info_data.get('data'):
                 user = user_info_data['data']
                 return jsonify({
                     'success': True,
                     'data': {
-                        'user_id': user.get('open_id') or user.get('user_id') or '',
+                        'open_id': user.get('open_id') or '',
+                        'user_id': user.get('user_id') or '',
+                        'union_id': user.get('union_id'),
                         'name': user.get('name') or '',
                         'en_name': user.get('en_name'),
-                        'email': user.get('email')
+                        'email': user.get('email'),
+                        'mobile': user.get('mobile'),
+                        'avatar_url': user.get('avatar_url'),
+                        # 保存原始数据用于调试
+                        '_raw': user
                     }
                 })
 
@@ -133,6 +140,7 @@ def get_user_info():
 def reset_password():
     """重置 AD 密码"""
     data = request.get_json()
+    print(data)
     new_password = data.get('newPassword')
     confirm_password = data.get('confirmPassword')
     user_id = data.get('user_id')
