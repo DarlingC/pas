@@ -286,6 +286,18 @@
                 return false;
             }
             
+            // 先检查第一个密码是否满足复杂度
+            const validation = validatePassword(newPwd);
+            if (!validation.valid) {
+                hint.textContent = '请先满足密码复杂度要求';
+                hint.classList.remove('success');
+                hint.classList.add('error');
+                input.classList.remove('success');
+                input.classList.add('error');
+                return false;
+            }
+            
+            // 再检查两次密码是否一致
             if (confirmPwd !== newPwd) {
                 hint.textContent = '两次输入的密码不一致';
                 hint.classList.remove('success');
@@ -346,7 +358,7 @@
                                 <div class="input-wrapper">
                                     <input type="password" id="new-password" placeholder="请输入新密码">
                                     <span class="password-hint" id="new-hint"></span>
-                                    <button type="button" class="toggle-btn" onclick="togglePassword('new-password')"></button>
+                                    <button type="button" class="toggle-btn" onclick="togglePassword('new-password')">${eyeIcon}</button>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -354,7 +366,7 @@
                                 <div class="input-wrapper">
                                     <input type="password" id="confirm-password" placeholder="请再次输入新密码">
                                     <span class="password-hint" id="confirm-hint"></span>
-                                    <button type="button" class="toggle-btn" onclick="togglePassword('confirm-password')"></button>
+                                    <button type="button" class="toggle-btn" onclick="togglePassword('confirm-password')">${eyeIcon}</button>
                                 </div>
                             </div>
                             <button type="submit" class="btn btn-primary" id="reset-btn" disabled>重置密码</button>
@@ -505,7 +517,7 @@
                                     <div class="input-wrapper">
                                         <input type="password" id="query-password" value="${p.password}" readonly>
                                     </div>
-                                    <button type="button" class="toggle-btn" onclick="toggleQueryPassword()"></button>
+                                    <button type="button" class="toggle-btn" onclick="toggleQueryPassword()">${eyeIcon}</button>
                                     <button type="button" class="copy-btn" id="copy-btn" onclick="copyPassword()">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                                         <span>复制</span>
