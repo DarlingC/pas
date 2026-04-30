@@ -1,17 +1,15 @@
 import os
 import sqlite3
 from datetime import datetime
-from functools import wraps
-import requests
-from flask import Flask, request, jsonify, g
 
-app = Flask(__name__, static_folder='../public', static_url_path='')
+import requests
+from dotenv import load_dotenv
+from flask import Flask, jsonify, request, g
 
 # 加载环境变量
-from dotenv import load_dotenv
 load_dotenv()
 
-# 配置
+# 从环境变量获取配置
 AD_LDAP_URL = os.getenv('AD_LDAP_URL', 'ldap://domain.com:389')
 AD_BASE_DN = os.getenv('AD_BASE_DN', 'DC=domain,DC=com')
 AD_ADMIN_DN = os.getenv('AD_ADMIN_DN', 'CN=Admin,CN=Users,DC=domain,DC=com')
@@ -22,12 +20,19 @@ FEISHU_APP_SECRET = os.getenv('FEISHU_APP_SECRET', '')
 # 数据库路径
 DB_PATH = os.path.join(os.path.dirname(__file__), 'passwords.db')
 
+# 创建 Flask 应用
+app = Flask(__name__, static_folder='../public', static_url_path='')
+
+
+# ==================== 数据库相关函数 ====================
+
 def get_db():
     """获取数据库连接"""
     if 'db' not in g:
         g.db = sqlite3.connect(DB_PATH)
         g.db.row_factory = sqlite3.Row
     return g.db
+
 
 @app.teardown_appcontext
 def close_db(exception):
@@ -36,22 +41,31 @@ def close_db(exception):
     if db is not None:
         db.close()
 
+
 def init_db():
     """初始化数据库"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    # 创建表，包含 user_account 字段（放在 user_id 后面）
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS passwords (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT NOT NULL UNIQUE,
+            user_account TEXT,
             user_name TEXT,
             password TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    # 添加 user_account 字段（如果不存在）
+    try:
+        cursor.execute('ALTER TABLE passwords ADD COLUMN user_account TEXT')
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     conn.close()
+
 
 # ==================== 飞书相关接口 ====================
 
@@ -62,6 +76,7 @@ def get_appid():
         return jsonify({'error': '未配置飞书应用ID'}), 500
     return jsonify({'appid': FEISHU_APP_ID})
 
+
 @app.route('/api/feishu/user', methods=['GET'])
 def get_user_info():
     """通过 code 获取用户信息（飞书 JSSDK 授权）"""
@@ -71,10 +86,14 @@ def get_user_info():
         try:
             # 获取 app_access_token
             token_url = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal'
-            token_response = requests.post(token_url, json={
-                'app_id': FEISHU_APP_ID,
-                'app_secret': FEISHU_APP_SECRET
-            }, timeout=10)
+            token_response = requests.post(
+                token_url,
+                json={
+                    'app_id': FEISHU_APP_ID,
+                    'app_secret': FEISHU_APP_SECRET
+                },
+                timeout=10
+            )
             token_data = token_response.json()
 
             if token_data.get('code') != 0:
@@ -84,17 +103,24 @@ def get_user_info():
 
             # 用 code 换取 user_access_token
             user_token_url = 'https://open.feishu.cn/open-apis/authen/v1/oidc/access_token'
-            user_token_response = requests.post(user_token_url, headers={
-                'Content-Type': 'application/json',
-                'Authorization': f'Bearer {app_access_token}'
-            }, json={
-                'grant_type': 'authorization_code',
-                'code': code
-            }, timeout=10)
+            user_token_response = requests.post(
+                user_token_url,
+                headers={
+                    'Content-Type': 'application/json',
+                    'Authorization': f'Bearer {app_access_token}'
+                },
+                json={
+                    'grant_type': 'authorization_code',
+                    'code': code
+                },
+                timeout=10
+            )
             user_token_data = user_token_response.json()
 
             if user_token_data.get('code') != 0:
-                return jsonify({'error': user_token_data.get('msg', '换取user_access_token失败')}), 401
+                return jsonify({
+                    'error': user_token_data.get('msg', '换取user_access_token失败')
+                }), 401
 
             user_access_token = user_token_data.get('data', {}).get('access_token')
             if not user_access_token:
@@ -102,9 +128,14 @@ def get_user_info():
 
             # 获取用户信息
             user_info_url = 'https://open.feishu.cn/open-apis/authen/v1/user_info'
-            user_info_response = requests.get(user_info_url, headers={
-                'Content-Type': 'application/json',
-                'Authorization': f'Bearer {user_access_token}'})
+            user_info_response = requests.get(
+                user_info_url,
+                headers={
+                    'Content-Type': 'application/json',
+                    'Authorization': f'Bearer {user_access_token}'
+                },
+                timeout=10
+            )
             user_info_data = user_info_response.json()
             print(f'飞书用户信息原始数据: {user_info_data}')
 
@@ -134,6 +165,7 @@ def get_user_info():
 
     return jsonify({'error': '缺少授权码'}), 400
 
+
 # ==================== AD 密码相关接口 ====================
 
 @app.route('/api/ad/password/reset', methods=['POST'])
@@ -145,7 +177,9 @@ def reset_password():
     confirm_password = data.get('confirmPassword')
     user_id = data.get('user_id')
     user_name = data.get('user_name')
-    user_account = data.get('email').split('@')[0]
+    email = data.get('email')
+    # 从邮箱提取 AD 账号
+    user_account = email.split('@')[0] if email else None
 
     if not new_password or not confirm_password:
         return jsonify({'error': '请填写新密码和确认密码'}), 400
@@ -157,7 +191,7 @@ def reset_password():
         return jsonify({'error': '密码长度不能少于8位'}), 400
 
     if not user_account:
-        return jsonify({'error': '飞书记录邮箱前缀与AD账号不符，请联系IT'}), 400
+        return jsonify({'error': '无法获取用户账号信息'}), 400
 
     # 调用 AD 修改密码
     result = ad_reset_password(user_account, new_password)
@@ -166,9 +200,10 @@ def reset_password():
         return jsonify({'error': result['message']}), 500
 
     # 保存密码到数据库
-    save_password(user_id, user_name, new_password)
+    save_password(user_id, user_account, user_name, new_password)
 
     return jsonify({'success': True, 'message': '密码重置成功'})
+
 
 @app.route('/api/ad/password/query', methods=['GET'])
 def query_password():
@@ -181,7 +216,11 @@ def query_password():
     record = get_password(user_id)
 
     if not record:
-        return jsonify({'success': False, 'message': '未找到已存储的密码', 'data': None})
+        return jsonify({
+            'success': False,
+            'message': '未找到已存储的密码',
+            'data': None
+        })
 
     return jsonify({
         'success': True,
@@ -190,6 +229,7 @@ def query_password():
             'updatedAt': record['updated_at']
         }
     })
+
 
 @app.route('/api/db/init', methods=['GET'])
 def check_db():
@@ -201,33 +241,39 @@ def check_db():
     except Exception as e:
         return jsonify({'error': f'数据库错误: {str(e)}'}), 500
 
+
 # ==================== AD 操作函数 ====================
 
 def ad_reset_password(user_account: str, new_password: str) -> dict:
     """修改 AD 密码"""
     try:
-        from ldap3 import Server, Connection, ALL, MODIFY_REPLACE
+        from ldap3 import ALL, Connection, MODIFY_REPLACE, Server
         from ldap3.core.exceptions import LDAPException
 
         server = Server(AD_LDAP_URL, get_info=ALL)
-
-        conn = Connection(server, user=AD_ADMIN_DN, password=AD_ADMIN_PASSWORD, auto_bind=True)
+        conn = Connection(
+            server,
+            user=AD_ADMIN_DN,
+            password=AD_ADMIN_PASSWORD,
+            auto_bind=True
+        )
 
         # 搜索用户
-        search_filter = f'(|(sAMAccountName={user_account})(userPrincipalName={user_account}*))'
+        search_filter = (
+            f'(|(sAMAccountName={user_account})'
+            f'(userPrincipalName={user_account}*))'
+        )
         conn.search(AD_BASE_DN, search_filter, attributes=['distinguishedName'])
 
         if not conn.entries:
             conn.unbind()
             return {'success': False, 'message': '未找到AD用户'}
+
         user_dn = conn.entries[0].distinguishedName.values[0]
 
         # 修改密码 (使用 unicodePwd)
         password_value = f'"{new_password}"'.encode('utf-16-le')
-
-        conn.modify(user_dn, {
-            'unicodePwd': [(MODIFY_REPLACE, [password_value])]
-        })
+        conn.modify(user_dn, {'unicodePwd': [(MODIFY_REPLACE, [password_value])]})
 
         conn.unbind()
 
@@ -241,21 +287,24 @@ def ad_reset_password(user_account: str, new_password: str) -> dict:
     except Exception as e:
         return {'success': False, 'message': f'错误: {str(e)}'}
 
+
 # ==================== 数据库操作函数 ====================
 
-def save_password(user_id: str, user_name: str, password: str):
+def save_password(user_id: str, user_account: str, user_name: str, password: str):
     """保存密码到数据库"""
     db = get_db()
     cursor = db.cursor()
     cursor.execute('''
-        INSERT INTO passwords (user_id, user_name, password, updated_at)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO passwords (user_id, user_account, user_name, password, updated_at)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(user_id) DO UPDATE SET
+            user_account = COALESCE(excluded.user_account, user_account),
             password = excluded.password,
             user_name = COALESCE(excluded.user_name, user_name),
             updated_at = excluded.updated_at
-    ''', (user_id, user_name, password, datetime.now().isoformat()))
+    ''', (user_id, user_account, user_name, password, datetime.now().isoformat()))
     db.commit()
+
 
 def get_password(user_id: str) -> dict:
     """从数据库获取密码"""
@@ -267,12 +316,16 @@ def get_password(user_id: str) -> dict:
         return dict(row)
     return None
 
-# ==================== 前端页面 ====================
+
+# ==================== 前端页面路由 ====================
 
 @app.route('/')
 def index():
     """主页"""
     return app.send_static_file('index.html')
+
+
+# ==================== 启动应用 ====================
 
 if __name__ == '__main__':
     init_db()
