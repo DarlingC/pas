@@ -30,7 +30,7 @@
         .input-wrapper { position: relative; }
         .form-group input {
             width: 100%;
-            padding: 10px 100px 10px 12px;
+            padding: 10px 50px 10px 12px;
             border: 1px solid #d9d9d9;
             border-radius: 6px;
             font-size: 14px;
@@ -43,21 +43,17 @@
         .form-group input.success { border-color: #52c41a; }
         .toggle-btn {
             position: absolute;
-            right: 100px;
+            right: 8px;
             top: 50%;
             transform: translateY(-50%);
             background: none;
             border: none;
             cursor: pointer;
             color: #999;
-            padding: 4px;
-            line-height: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            font-size: 12px;
+            padding: 2px 6px;
         }
-        .toggle-btn:hover { color: #666; }
-        .toggle-btn svg { width: 20px; height: 20px; }
+        .toggle-btn:hover { color: #1890ff; }
         .copy-btn {
             padding: 8px 16px;
             background: white;
@@ -67,20 +63,10 @@
             color: #666;
             font-size: 14px;
             white-space: nowrap;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .copy-btn svg { width: 14px; height: 14px; }
-        .password-hint {
-            position: absolute;
-            right: 40px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 11px;
-            color: #999;
-            white-space: nowrap;
-        }
+            transition: all 0.2s;
+        }        .copy-btn:hover { border-color: #1890ff; color: #1890ff; }
+        .copy-btn.copied { background-color: #f6ffed; border-color: #b7eb8f; color: #52c41a; }
+
         .btn {
             width: 100%;
             padding: 10px 16px;
@@ -100,18 +86,7 @@
         .alert-success { background-color: #f6ffed; border: 1px solid #b7eb8f; color: #52c41a; }
         .result-group { display: flex; gap: 8px; align-items: center; }
         .result-group .input-wrapper { flex: 1; }
-        .copy-btn {
-            padding: 8px 16px;
-            background: white;
-            border: 1px solid #d9d9d9;
-            border-radius: 6px;
-            cursor: pointer;
-            color: #666;
-            font-size: 14px;
-            white-space: nowrap;
-        }
-        .copy-btn:hover { border-color: #1890ff; color: #1890ff; }
-        .copy-btn.copied { background-color: #f6ffed; border-color: #b7eb8f; color: #52c41a; }
+
         .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; }
         .spinner {
             width: 48px; height: 48px;
@@ -127,15 +102,9 @@
         .error-page p { color: #666; font-size: 14px; }
         .hint { margin-top: 16px; padding: 12px; background: #f5f5f5; border-radius: 6px; font-size: 12px; color: #999; }
         .update-time { font-size: 12px; color: #999; margin-top: 8px; }
-        .validation-msg { font-size: 12px; margin-top: 4px; color: #ff4d4f; }
+        .validation-msg { font-size: 12px; margin-top: 4px; min-height: 16px; }
+        .validation-msg.error { color: #ff4d4f; }
         .validation-msg.success { color: #52c41a; }
-        
-        /* 调试信息样式 */
-        .debug-card { background: #f0f9ff; border-color: #1890ff; }
-        .debug-title { color: #1890ff; }
-        .debug-field { font-size: 12px; margin: 4px 0; }
-        .debug-field strong { color: #333; }
-        .debug-raw { margin-top: 12px; font-size: 10px; background: #f5f5f5; padding: 8px; border-radius: 4px; overflow: auto; max-height: 200px; white-space: pre-wrap; word-break: break-all; }
     </style>
 </head>
 <body>
@@ -174,41 +143,50 @@
         async function getFeishuUser() {
             const sdkReady = await waitForSDK();
             
-            if (sdkReady) {
-                try {
-                    const appidRes = await fetch(API_BASE + '/api/feishu/appid');
-                    const appidData = await appidRes.json();
-                    
-                    if (!appidData.appid) {
-                        throw new Error('无法获取应用ID');
-                    }
-                    
-                    const code = await new Promise((resolve, reject) => {
-                        window.h5sdk.ready(() => {
-                            window.tt.requestAccess({
-                                appID: appidData.appid,
-                                scopeList: [],
-                                success: (res) => resolve(res.code),
-                                fail: (err) => reject(new Error('requestAccess 失败'))
-                            });
-                        });
-                        window.h5sdk.error((err) => reject(new Error('h5sdk 初始化失败')));
-                    });
-                    
-                    const userRes = await fetch(API_BASE + '/api/feishu/user?code=' + code);
-                    const userData = await userRes.json();
-                    
-                    if (userData.success) {
-                        return userData.data;
-                    } else {
-                        throw new Error(userData.error || '获取用户信息失败');
-                    }
-                } catch (err) {
-                    throw err;
-                }
-            } else {
-                throw new Error('飞书 SDK 未加载，请在飞书应用内打开');
+            if (!sdkReady) {
+                throw new Error('请在飞书应用内打开本页面');
             }
+
+            const appidRes = await fetch(API_BASE + '/api/feishu/appid');
+            const appidData = await appidRes.json();
+            
+            if (!appidData.appid) {
+                throw new Error('无法获取应用ID');
+            }
+            
+            const code = await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('授权超时，请刷新页面重试'));
+                }, 10000);
+                
+                window.h5sdk.ready(() => {
+                    window.tt.requestAccess({
+                        appID: appidData.appid,
+                        scopeList: [],
+                        success: (res) => {
+                            clearTimeout(timeout);
+                            resolve(res.code);
+                        },
+                        fail: (err) => {
+                            clearTimeout(timeout);
+                            reject(new Error('授权失败，请刷新页面重试'));
+                        }
+                    });
+                });
+                window.h5sdk.error((err) => {
+                    clearTimeout(timeout);
+                    reject(new Error('SDK 初始化失败'));
+                });
+            });
+            
+            const userRes = await fetch(API_BASE + '/api/feishu/user?code=' + code);
+            const userData = await userRes.json();
+            
+            if (!userData.success) {
+                throw new Error(userData.error || '获取用户信息失败');
+            }
+            
+            return userData.data;
         }
 
         function showLoading() {
@@ -318,14 +296,6 @@
         function showHome(user) {
             currentUser = user;
             
-            // 调试信息
-            const debugFields = Object.entries(user)
-                .filter(([key]) => key !== '_raw')
-                .map(([key, value]) => '<div class="debug-field"><strong>' + key + ':</strong> ' + (value || '(空)') + '</div>')
-                .join('');
-            
-            const rawData = user._raw ? '<div class="debug-raw">' + JSON.stringify(user._raw, null, 2) + '</div>' : '';
-            
             // AD 用户名（从邮箱提取）
             const adUsername = user.email ? user.email.split('@')[0] : '';
             
@@ -334,14 +304,6 @@
                     <div class="header">
                         <h1>AD 密码管理</h1>
                         <p class="username">欢迎，${user.name || user.en_name || '用户'}</p>
-                    </div>
-                    
-                    <!-- 调试信息 -->
-                    <div class="card debug-card">
-                        <div class="card-title debug-title">调试信息</div>
-                        <div class="card-desc">AD 用户名：<strong>${adUsername || '(无邮箱)'}</strong></div>
-                        ${debugFields}
-                        ${rawData ? '<div class="debug-raw">' + JSON.stringify(user._raw || {}, null, 2) + '</div>' : ''}
                     </div>
                     
                     <div class="card">
@@ -356,18 +318,18 @@
                             <div class="form-group">
                                 <label>新密码</label>
                                 <div class="input-wrapper">
-                                    <input type="password" id="new-password" placeholder="请输入新密码">
-                                    <span class="password-hint" id="new-hint"></span>
-                                    <button type="button" class="toggle-btn" onclick="togglePassword('new-password')">${eyeIcon}</button>
+                                    <input type="password" id="new-password" placeholder="请输入新密码" autocomplete="new-password">
+                                    <button type="button" class="toggle-btn" data-target="new-password">显示</button>
                                 </div>
+                                <div class="validation-msg" id="new-hint"></div>
                             </div>
                             <div class="form-group">
                                 <label>确认密码</label>
                                 <div class="input-wrapper">
-                                    <input type="password" id="confirm-password" placeholder="请再次输入新密码">
-                                    <span class="password-hint" id="confirm-hint"></span>
-                                    <button type="button" class="toggle-btn" onclick="togglePassword('confirm-password')">${eyeIcon}</button>
+                                    <input type="password" id="confirm-password" placeholder="请再次输入新密码" autocomplete="new-password">
+                                    <button type="button" class="toggle-btn" data-target="confirm-password">显示</button>
                                 </div>
+                                <div class="validation-msg" id="confirm-hint"></div>
                             </div>
                             <button type="submit" class="btn btn-primary" id="reset-btn" disabled>重置密码</button>
                         </form>
@@ -376,11 +338,19 @@
                     <div class="card">
                         <div class="card-title">查询密码</div>
                         <div class="card-desc">查询您已存储的 AD 密码</div>
-                        <button class="btn btn-outline" id="query-btn" onclick="queryPassword()">查询密码</button>
+                        <button class="btn btn-outline" id="query-btn">查询密码</button>
                         <div id="query-result"></div>
                     </div>
                 </div>
             `;
+            
+            // 绑定密码显示/隐藏按钮事件
+            document.querySelectorAll('.toggle-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const targetId = this.getAttribute('data-target');
+                    togglePassword(targetId);
+                });
+            });
             
             // 绑定密码输入事件
             document.getElementById('new-password').addEventListener('input', function() {
@@ -398,36 +368,34 @@
                 e.preventDefault();
                 await resetPassword();
             });
+            
+            document.getElementById('query-btn').addEventListener('click', queryPassword);
         }
 
-        // 更新重置按钮状态
+        // 更新重置按钮状态（优化：避免重复调用）
         function updateResetButton() {
             const newPwd = document.getElementById('new-password').value;
             const confirmPwd = document.getElementById('confirm-password').value;
             const btn = document.getElementById('reset-btn');
             
-            const isNewValid = updatePasswordStatus('new-password', 'new-hint');
-            const isConfirmMatch = updateConfirmStatus();
+            const isNewValid = validatePassword(newPwd).valid;
+            const isConfirmMatch = newPwd && confirmPwd && newPwd === confirmPwd;
             
             btn.disabled = !(newPwd && confirmPwd && isNewValid && isConfirmMatch);
         }
 
-        // SVG 图标
-        const eyeIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
-        const eyeOffIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
-        const copyIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
-        const checkIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`;
-
         function togglePassword(inputId) {
             const input = document.getElementById(inputId);
-            const toggle = input.parentElement.querySelector('.toggle-btn');
+            if (!input) return;
+            
+            const btn = input.parentElement.querySelector('.toggle-btn');
             
             if (input.type === 'password') {
                 input.type = 'text';
-                toggle.innerHTML = eyeIcon;  // 睁眼 = 显示密码
+                if (btn) btn.textContent = '隐藏';
             } else {
                 input.type = 'password';
-                toggle.innerHTML = eyeOffIcon;  // 斜杠 = 隐藏密码
+                if (btn) btn.textContent = '显示';
             }
         }
 
@@ -488,7 +456,7 @@
             } catch (err) {
                 alert.innerHTML = '<div class="alert alert-error">请求失败，请稍后重试</div>';
             } finally {
-                btn.disabled = true;
+                btn.disabled = false;
                 btn.textContent = '重置密码';
                 updateResetButton();
             }
@@ -516,17 +484,20 @@
                                 <div class="result-group">
                                     <div class="input-wrapper">
                                         <input type="password" id="query-password" value="${p.password}" readonly>
+                                        <button type="button" class="toggle-btn" id="toggle-query-btn">显示</button>
                                     </div>
-                                    <button type="button" class="toggle-btn" onclick="toggleQueryPassword()">${eyeIcon}</button>
-                                    <button type="button" class="copy-btn" id="copy-btn" onclick="copyPassword()">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                                        <span>复制</span>
-                                    </button>
+                                    <button type="button" class="copy-btn" id="copy-btn">复制</button>
                                 </div>
                             </div>
                             <div class="update-time">最后更新时间：${updateTime}</div>
                         </div>
                     `;
+                    
+                    // 绑定事件监听器
+                    document.getElementById('toggle-query-btn').addEventListener('click', function() {
+                        togglePassword('query-password');
+                    });
+                    document.getElementById('copy-btn').addEventListener('click', copyPassword);
                 } else {
                     resultDiv.innerHTML = '<div class="alert alert-error">' + (data.error || '未找到已存储的密码') + '</div>';
                 }
@@ -538,32 +509,38 @@
             }
         }
 
-        function toggleQueryPassword() {
-            const input = document.getElementById('query-password');
-            const btn = input.parentElement.querySelector('.toggle-btn');
-            if (input.type === 'password') {
-                input.type = 'text';
-                btn.innerHTML = eyeIcon;  // 睁眼 = 显示密码
-            } else {
-                input.type = 'password';
-                btn.innerHTML = eyeOffIcon;  // 斜杠 = 隐藏密码
-            }
-        }
-
         async function copyPassword() {
             const input = document.getElementById('query-password');
             const btn = document.getElementById('copy-btn');
             
+            if (!input || !btn) {
+                console.error('找不到密码输入框或复制按钮');
+                return;
+            }
+            
             try {
-                await navigator.clipboard.writeText(input.value);
-                btn.innerHTML = checkIcon + '<span>已复制</span>';
+                // 优先使用现代 Clipboard API
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(input.value);
+                } else {
+                    // 降级方案：使用传统的 select + execCommand
+                    input.type = 'text';
+                    input.select();
+                    input.setSelectionRange(0, 99999);
+                    document.execCommand('copy');
+                    input.type = 'password';
+                }
+                
+                const originalText = btn.textContent;
+                btn.textContent = '已复制';
                 btn.classList.add('copied');
                 setTimeout(() => {
-                    btn.textContent = '复制';
+                    btn.textContent = originalText;
                     btn.classList.remove('copied');
                 }, 2000);
             } catch (err) {
                 console.error('复制失败:', err);
+                alert('复制失败，请手动复制');
             }
         }
 
