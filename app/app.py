@@ -145,6 +145,7 @@ def reset_password():
     confirm_password = data.get('confirmPassword')
     user_id = data.get('user_id')
     user_name = data.get('user_name')
+    user_account = data.get('email').split('@')[0]
 
     if not new_password or not confirm_password:
         return jsonify({'error': '请填写新密码和确认密码'}), 400
@@ -155,11 +156,11 @@ def reset_password():
     if len(new_password) < 8:
         return jsonify({'error': '密码长度不能少于8位'}), 400
 
-    if not user_id:
-        return jsonify({'error': '无法识别用户身份'}), 400
+    if not user_account:
+        return jsonify({'error': '飞书记录邮箱前缀与AD账号不符，请联系IT'}), 400
 
     # 调用 AD 修改密码
-    result = ad_reset_password(user_id, new_password)
+    result = ad_reset_password(user_account, new_password)
 
     if not result['success']:
         return jsonify({'error': result['message']}), 500
@@ -202,7 +203,7 @@ def check_db():
 
 # ==================== AD 操作函数 ====================
 
-def ad_reset_password(user_id: str, new_password: str) -> dict:
+def ad_reset_password(user_account: str, new_password: str) -> dict:
     """修改 AD 密码"""
     try:
         from ldap3 import Server, Connection, ALL, MODIFY_REPLACE
@@ -213,13 +214,12 @@ def ad_reset_password(user_id: str, new_password: str) -> dict:
         conn = Connection(server, user=AD_ADMIN_DN, password=AD_ADMIN_PASSWORD, auto_bind=True)
 
         # 搜索用户
-        search_filter = f'(|(sAMAccountName={user_id})(userPrincipalName={user_id}*))'
+        search_filter = f'(|(sAMAccountName={user_account})(userPrincipalName={user_account}*))'
         conn.search(AD_BASE_DN, search_filter, attributes=['distinguishedName'])
 
         if not conn.entries:
             conn.unbind()
             return {'success': False, 'message': '未找到AD用户'}
-
         user_dn = conn.entries[0].distinguishedName.values[0]
 
         # 修改密码 (使用 unicodePwd)
