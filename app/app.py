@@ -325,10 +325,16 @@ def index():
     return app.send_static_file('index.html')
 
 
+def create_app():
+    """创建 Flask 应用"""
+    init_db()
+    return app
+
+
 # ==================== 启动应用 ====================
 
 if __name__ == '__main__':
-    init_db()
+    app = create_app()
 
     host = os.getenv('FLASK_HOST', '0.0.0.0')
     port = int(os.getenv('FLASK_PORT', 5002))
