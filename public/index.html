@@ -43,7 +43,7 @@
         .form-group input.success { border-color: #52c41a; }
         .toggle-btn {
             position: absolute;
-            right: 50px;
+            right: 100px;
             top: 50%;
             transform: translateY(-50%);
             background: none;
@@ -424,10 +424,10 @@
             
             if (input.type === 'password') {
                 input.type = 'text';
-                toggle.innerHTML = eyeOffIcon;
+                toggle.innerHTML = eyeIcon;  // 睁眼 = 显示密码
             } else {
                 input.type = 'password';
-                toggle.innerHTML = eyeIcon;
+                toggle.innerHTML = eyeOffIcon;  // 斜杠 = 隐藏密码
             }
         }
 
@@ -543,10 +543,10 @@
             const btn = input.parentElement.querySelector('.toggle-btn');
             if (input.type === 'password') {
                 input.type = 'text';
-                btn.innerHTML = eyeOffIcon;
+                btn.innerHTML = eyeIcon;  // 睁眼 = 显示密码
             } else {
                 input.type = 'password';
-                btn.innerHTML = eyeIcon;
+                btn.innerHTML = eyeOffIcon;  // 斜杠 = 隐藏密码
             }
         }
 
