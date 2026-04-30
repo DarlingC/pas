@@ -194,7 +194,20 @@ def create_app():
                 return {"success": True}
             else:
                 error_msg = result.get("message", "")
-                return {"success": False, "error": f"密码修改失败: {result}"}
+                error_code = result.get("result", 0)
+                
+                # 错误信息映射
+                error_messages = {
+                    32: "AD 用户不存在",
+                    49: "AD 凭据无效，请联系管理员",
+                    50: "AD 权限不足，请联系管理员",
+                    53: "密码不符合 AD 策略要求（需满足复杂度）",
+                    64: "AD 用户名格式错误",
+                    76: "密码不符合最小使用年限要求",
+                }
+                
+                friendly_error = error_messages.get(error_code, f"AD 错误 ({error_code}): {error_msg}")
+                return {"success": False, "error": friendly_error}
                 
         except LDAPException as e:
             return {"success": False, "error": f"LDAP 错误: {str(e)}"}

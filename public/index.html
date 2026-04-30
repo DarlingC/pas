@@ -43,18 +43,35 @@
         .form-group input.success { border-color: #52c41a; }
         .toggle-btn {
             position: absolute;
-            right: 8px;
+            right: 50px;
             top: 50%;
             transform: translateY(-50%);
             background: none;
             border: none;
             cursor: pointer;
             color: #999;
-            font-size: 18px;
             padding: 4px;
             line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .toggle-btn:hover { color: #666; }
+        .toggle-btn svg { width: 20px; height: 20px; }
+        .copy-btn {
+            padding: 8px 16px;
+            background: white;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            cursor: pointer;
+            color: #666;
+            font-size: 14px;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .copy-btn svg { width: 14px; height: 14px; }
         .password-hint {
             position: absolute;
             right: 40px;
@@ -329,7 +346,7 @@
                                 <div class="input-wrapper">
                                     <input type="password" id="new-password" placeholder="请输入新密码">
                                     <span class="password-hint" id="new-hint"></span>
-                                    <button type="button" class="toggle-btn" onclick="togglePassword('new-password', 'new-toggle')">👁</button>
+                                    <button type="button" class="toggle-btn" onclick="togglePassword('new-password')"></button>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -337,7 +354,7 @@
                                 <div class="input-wrapper">
                                     <input type="password" id="confirm-password" placeholder="请再次输入新密码">
                                     <span class="password-hint" id="confirm-hint"></span>
-                                    <button type="button" class="toggle-btn" onclick="togglePassword('confirm-password', 'confirm-toggle')">👁</button>
+                                    <button type="button" class="toggle-btn" onclick="togglePassword('confirm-password')"></button>
                                 </div>
                             </div>
                             <button type="submit" class="btn btn-primary" id="reset-btn" disabled>重置密码</button>
@@ -383,16 +400,22 @@
             btn.disabled = !(newPwd && confirmPwd && isNewValid && isConfirmMatch);
         }
 
-        function togglePassword(inputId, toggleId) {
+        // SVG 图标
+        const eyeIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+        const eyeOffIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+        const copyIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+        const checkIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+        function togglePassword(inputId) {
             const input = document.getElementById(inputId);
-            const toggle = document.getElementById(toggleId) || input.nextElementSibling.nextElementSibling;
+            const toggle = input.parentElement.querySelector('.toggle-btn');
             
             if (input.type === 'password') {
                 input.type = 'text';
-                toggle.textContent = '🙈';
+                toggle.innerHTML = eyeOffIcon;
             } else {
                 input.type = 'password';
-                toggle.textContent = '👁';
+                toggle.innerHTML = eyeIcon;
             }
         }
 
@@ -482,8 +505,11 @@
                                     <div class="input-wrapper">
                                         <input type="password" id="query-password" value="${p.password}" readonly>
                                     </div>
-                                    <button type="button" class="toggle-btn" onclick="toggleQueryPassword()">👁</button>
-                                    <button type="button" class="copy-btn" id="copy-btn" onclick="copyPassword()">复制</button>
+                                    <button type="button" class="toggle-btn" onclick="toggleQueryPassword()"></button>
+                                    <button type="button" class="copy-btn" id="copy-btn" onclick="copyPassword()">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                        <span>复制</span>
+                                    </button>
                                 </div>
                             </div>
                             <div class="update-time">最后更新时间：${updateTime}</div>
@@ -502,13 +528,13 @@
 
         function toggleQueryPassword() {
             const input = document.getElementById('query-password');
-            const btn = input.nextElementSibling;
+            const btn = input.parentElement.querySelector('.toggle-btn');
             if (input.type === 'password') {
                 input.type = 'text';
-                btn.textContent = '🙈';
+                btn.innerHTML = eyeOffIcon;
             } else {
                 input.type = 'password';
-                btn.textContent = '👁';
+                btn.innerHTML = eyeIcon;
             }
         }
 
@@ -518,7 +544,7 @@
             
             try {
                 await navigator.clipboard.writeText(input.value);
-                btn.textContent = '已复制';
+                btn.innerHTML = checkIcon + '<span>已复制</span>';
                 btn.classList.add('copied');
                 setTimeout(() => {
                     btn.textContent = '复制';
