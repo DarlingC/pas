@@ -250,13 +250,29 @@ def ad_reset_password(user_account: str, new_password: str) -> dict:
         from ldap3 import ALL, Connection, MODIFY_REPLACE, Server
         from ldap3.core.exceptions import LDAPException
 
-        server = Server(AD_LDAP_URL, get_info=ALL)
+        # 检查是否使用 LDAPS
+        use_ssl = AD_LDAP_URL.lower().startswith('ldaps://')
+        
+        if use_ssl:
+            server = Server(AD_LDAP_URL, get_info=ALL, use_ssl=True)
+        else:
+            server = Server(AD_LDAP_URL, get_info=ALL)
+        
         conn = Connection(
             server,
             user=AD_ADMIN_DN,
             password=AD_ADMIN_PASSWORD,
-            auto_bind=True
+            auto_bind=True,
+            raise_exceptions=True
         )
+        
+        # 非 SSL 连接需要启用 TLS
+        if not use_ssl and hasattr(conn, 'start_tls'):
+            try:
+                conn.start_tls()
+                print('LDAP STARTTLS 已启用')
+            except Exception as tls_err:
+                print(f'LDAP STARTTLS 失败（可能不支持）: {tls_err}')
 
         # 搜索用户
         search_filter = (
