@@ -30,7 +30,7 @@
         .input-wrapper { position: relative; }
         .form-group input {
             width: 100%;
-            padding: 10px 40px 10px 12px;
+            padding: 10px 100px 10px 12px;
             border: 1px solid #d9d9d9;
             border-radius: 6px;
             font-size: 14px;
@@ -38,18 +38,32 @@
             transition: border-color 0.2s;
         }
         .form-group input:focus { border-color: #1890ff; }
+        .form-group input:disabled { background-color: #f5f5f5; color: #999; }
+        .form-group input.error { border-color: #ff4d4f; }
+        .form-group input.success { border-color: #52c41a; }
         .toggle-btn {
             position: absolute;
-            right: 12px;
+            right: 8px;
             top: 50%;
             transform: translateY(-50%);
             background: none;
             border: none;
             cursor: pointer;
             color: #999;
-            font-size: 14px;
+            font-size: 18px;
+            padding: 4px;
+            line-height: 1;
         }
         .toggle-btn:hover { color: #666; }
+        .password-hint {
+            position: absolute;
+            right: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 11px;
+            color: #999;
+            white-space: nowrap;
+        }
         .btn {
             width: 100%;
             padding: 10px 16px;
@@ -68,18 +82,19 @@
         .alert-error { background-color: #fff2f0; border: 1px solid #ffccc7; color: #ff4d4f; }
         .alert-success { background-color: #f6ffed; border: 1px solid #b7eb8f; color: #52c41a; }
         .result-group { display: flex; gap: 8px; align-items: center; }
-        .result-group input { flex: 1; }
-        .icon-btn {
-            padding: 8px;
+        .result-group .input-wrapper { flex: 1; }
+        .copy-btn {
+            padding: 8px 16px;
             background: white;
             border: 1px solid #d9d9d9;
             border-radius: 6px;
             cursor: pointer;
             color: #666;
-            font-size: 12px;
+            font-size: 14px;
+            white-space: nowrap;
         }
-        .icon-btn:hover { border-color: #1890ff; color: #1890ff; }
-        .icon-btn.copied { background-color: #f6ffed; border-color: #b7eb8f; color: #52c41a; }
+        .copy-btn:hover { border-color: #1890ff; color: #1890ff; }
+        .copy-btn.copied { background-color: #f6ffed; border-color: #b7eb8f; color: #52c41a; }
         .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; }
         .spinner {
             width: 48px; height: 48px;
@@ -95,6 +110,8 @@
         .error-page p { color: #666; font-size: 14px; }
         .hint { margin-top: 16px; padding: 12px; background: #f5f5f5; border-radius: 6px; font-size: 12px; color: #999; }
         .update-time { font-size: 12px; color: #999; margin-top: 8px; }
+        .validation-msg { font-size: 12px; margin-top: 4px; color: #ff4d4f; }
+        .validation-msg.success { color: #52c41a; }
         
         /* 调试信息样式 */
         .debug-card { background: #f0f9ff; border-color: #1890ff; }
@@ -185,6 +202,90 @@
             document.getElementById('app').innerHTML = '<div class="container"><div class="card error-page"><h2>出错了</h2><p>' + message + '</p><div class="hint">请确保从飞书应用入口访问此页面</div></div></div>';
         }
 
+        // 验证密码复杂度
+        function validatePassword(password) {
+            const errors = [];
+            
+            if (password.length < 8) {
+                errors.push("密码长度至少8位");
+            }
+            
+            let categories = 0;
+            if (/[A-Z]/.test(password)) categories++;
+            if (/[a-z]/.test(password)) categories++;
+            if (/[0-9]/.test(password)) categories++;
+            if (/[^A-Za-z0-9]/.test(password)) categories++;
+            
+            if (categories < 3) {
+                errors.push("需包含至少3种：大写字母、小写字母、数字、特殊字符");
+            }
+            
+            return {
+                valid: errors.length === 0,
+                message: errors.length > 0 ? errors.join("；") : "密码格式正确"
+            };
+        }
+
+        // 更新密码验证状态
+        function updatePasswordStatus(inputId, hintId) {
+            const input = document.getElementById(inputId);
+            const hint = document.getElementById(hintId);
+            const value = input.value;
+            
+            if (!value) {
+                input.classList.remove('error', 'success');
+                hint.textContent = '';
+                return false;
+            }
+            
+            const result = validatePassword(value);
+            hint.textContent = result.message;
+            
+            if (result.valid) {
+                input.classList.remove('error');
+                input.classList.add('success');
+                hint.classList.remove('error');
+                hint.classList.add('success');
+            } else {
+                input.classList.remove('success');
+                input.classList.add('error');
+                hint.classList.remove('success');
+                hint.classList.add('error');
+            }
+            
+            return result.valid;
+        }
+
+        // 更新确认密码状态
+        function updateConfirmStatus() {
+            const newPwd = document.getElementById('new-password').value;
+            const confirmPwd = document.getElementById('confirm-password').value;
+            const hint = document.getElementById('confirm-hint');
+            const input = document.getElementById('confirm-password');
+            
+            if (!confirmPwd) {
+                input.classList.remove('error', 'success');
+                hint.textContent = '';
+                return false;
+            }
+            
+            if (confirmPwd !== newPwd) {
+                hint.textContent = '两次输入的密码不一致';
+                hint.classList.remove('success');
+                hint.classList.add('error');
+                input.classList.remove('success');
+                input.classList.add('error');
+                return false;
+            } else {
+                hint.textContent = '密码一致';
+                hint.classList.remove('error');
+                hint.classList.add('success');
+                input.classList.remove('error');
+                input.classList.add('success');
+                return true;
+            }
+        }
+
         function showHome(user) {
             currentUser = user;
             
@@ -209,7 +310,7 @@
                     <!-- 调试信息 -->
                     <div class="card debug-card">
                         <div class="card-title debug-title">调试信息</div>
-                        <div class="card-desc">AD 用户名将自动使用邮箱前缀: <strong>${adUsername || '(无邮箱)'}</strong></div>
+                        <div class="card-desc">AD 用户名：<strong>${adUsername || '(无邮箱)'}</strong></div>
                         ${debugFields}
                         ${rawData ? '<div class="debug-raw">' + JSON.stringify(user._raw || {}, null, 2) + '</div>' : ''}
                     </div>
@@ -226,18 +327,20 @@
                             <div class="form-group">
                                 <label>新密码</label>
                                 <div class="input-wrapper">
-                                    <input type="password" id="new-password" placeholder="请输入新密码（至少8位）">
-                                    <button type="button" class="toggle-btn" onclick="togglePassword('new-password')">显示</button>
+                                    <input type="password" id="new-password" placeholder="请输入新密码">
+                                    <span class="password-hint" id="new-hint"></span>
+                                    <button type="button" class="toggle-btn" onclick="togglePassword('new-password', 'new-toggle')">👁</button>
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label>确认密码</label>
                                 <div class="input-wrapper">
                                     <input type="password" id="confirm-password" placeholder="请再次输入新密码">
-                                    <button type="button" class="toggle-btn" onclick="togglePassword('confirm-password')">显示</button>
+                                    <span class="password-hint" id="confirm-hint"></span>
+                                    <button type="button" class="toggle-btn" onclick="togglePassword('confirm-password', 'confirm-toggle')">👁</button>
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-primary" id="reset-btn">重置密码</button>
+                            <button type="submit" class="btn btn-primary" id="reset-btn" disabled>重置密码</button>
                         </form>
                     </div>
                     
@@ -250,21 +353,46 @@
                 </div>
             `;
             
+            // 绑定密码输入事件
+            document.getElementById('new-password').addEventListener('input', function() {
+                updatePasswordStatus('new-password', 'new-hint');
+                updateConfirmStatus();
+                updateResetButton();
+            });
+            
+            document.getElementById('confirm-password').addEventListener('input', function() {
+                updateConfirmStatus();
+                updateResetButton();
+            });
+            
             document.getElementById('reset-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 await resetPassword();
             });
         }
 
-        function togglePassword(id) {
-            const input = document.getElementById(id);
-            const btn = input.nextElementSibling;
+        // 更新重置按钮状态
+        function updateResetButton() {
+            const newPwd = document.getElementById('new-password').value;
+            const confirmPwd = document.getElementById('confirm-password').value;
+            const btn = document.getElementById('reset-btn');
+            
+            const isNewValid = updatePasswordStatus('new-password', 'new-hint');
+            const isConfirmMatch = updateConfirmStatus();
+            
+            btn.disabled = !(newPwd && confirmPwd && isNewValid && isConfirmMatch);
+        }
+
+        function togglePassword(inputId, toggleId) {
+            const input = document.getElementById(inputId);
+            const toggle = document.getElementById(toggleId) || input.nextElementSibling.nextElementSibling;
+            
             if (input.type === 'password') {
                 input.type = 'text';
-                btn.textContent = '隐藏';
+                toggle.textContent = '🙈';
             } else {
                 input.type = 'password';
-                btn.textContent = '显示';
+                toggle.textContent = '👁';
             }
         }
 
@@ -286,8 +414,10 @@
                 return;
             }
             
-            if (newPassword.length < 8) {
-                alert.innerHTML = '<div class="alert alert-error">密码长度不能少于8位</div>';
+            // 验证密码复杂度
+            const validation = validatePassword(newPassword);
+            if (!validation.valid) {
+                alert.innerHTML = '<div class="alert alert-error">' + validation.message + '</div>';
                 return;
             }
             
@@ -313,14 +443,19 @@
                     alert.innerHTML = '<div class="alert alert-success">密码重置成功</div>';
                     document.getElementById('new-password').value = '';
                     document.getElementById('confirm-password').value = '';
+                    document.getElementById('new-hint').textContent = '';
+                    document.getElementById('confirm-hint').textContent = '';
+                    document.getElementById('new-password').classList.remove('success', 'error');
+                    document.getElementById('confirm-password').classList.remove('success', 'error');
                 } else {
                     alert.innerHTML = '<div class="alert alert-error">' + data.error + '</div>';
                 }
             } catch (err) {
                 alert.innerHTML = '<div class="alert alert-error">请求失败，请稍后重试</div>';
             } finally {
-                btn.disabled = false;
+                btn.disabled = true;
                 btn.textContent = '重置密码';
+                updateResetButton();
             }
         }
 
@@ -344,11 +479,11 @@
                             <div class="form-group">
                                 <label>已存储的密码</label>
                                 <div class="result-group">
-                                    <div class="input-wrapper" style="flex:1">
+                                    <div class="input-wrapper">
                                         <input type="password" id="query-password" value="${p.password}" readonly>
                                     </div>
-                                    <button type="button" class="icon-btn" onclick="toggleQueryPassword()">显</button>
-                                    <button type="button" class="icon-btn" id="copy-btn" onclick="copyPassword()">复</button>
+                                    <button type="button" class="toggle-btn" onclick="toggleQueryPassword()">👁</button>
+                                    <button type="button" class="copy-btn" id="copy-btn" onclick="copyPassword()">复制</button>
                                 </div>
                             </div>
                             <div class="update-time">最后更新时间：${updateTime}</div>
@@ -370,10 +505,10 @@
             const btn = input.nextElementSibling;
             if (input.type === 'password') {
                 input.type = 'text';
-                btn.textContent = '隐';
+                btn.textContent = '🙈';
             } else {
                 input.type = 'password';
-                btn.textContent = '显';
+                btn.textContent = '👁';
             }
         }
 
@@ -386,7 +521,7 @@
                 btn.textContent = '已复制';
                 btn.classList.add('copied');
                 setTimeout(() => {
-                    btn.textContent = '复';
+                    btn.textContent = '复制';
                     btn.classList.remove('copied');
                 }, 2000);
             } catch (err) {
@@ -400,7 +535,8 @@
                 const user = await getFeishuUser();
                 showHome(user);
             } catch (err) {
-                showError(err.message || '获取用户信息失败');
+                console.error('初始化失败:', err);
+                showError(err.message);
             }
         }
 
