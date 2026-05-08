@@ -302,7 +302,6 @@
             document.getElementById('app').innerHTML = `
                 <div class="container">
                     <div class="header">
-                        <h1>AD 密码管理</h1>
                         <p class="username">欢迎，${user.name || user.en_name || '用户'}</p>
                     </div>
                     
@@ -523,12 +522,15 @@
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     await navigator.clipboard.writeText(input.value);
                 } else {
-                    // 降级方案：使用传统的 select + execCommand
-                    input.type = 'text';
-                    input.select();
-                    input.setSelectionRange(0, 99999);
+                    // 降级方案：创建临时 textarea 避免选中输入框
+                    const textarea = document.createElement('textarea');
+                    textarea.value = input.value;
+                    textarea.style.position = 'fixed';
+                    textarea.style.left = '-9999px';
+                    document.body.appendChild(textarea);
+                    textarea.select();
                     document.execCommand('copy');
-                    input.type = 'password';
+                    document.body.removeChild(textarea);
                 }
                 
                 const originalText = btn.textContent;
