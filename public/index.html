@@ -169,7 +169,8 @@
                         },
                         fail: (err) => {
                             clearTimeout(timeout);
-                            reject(new Error('授权失败，请刷新页面重试'));
+                            const errMsg = err.errString || err.errMsg || JSON.stringify(err);
+                            reject(new Error('授权失败: ' + errMsg));
                         }
                     });
                 });
