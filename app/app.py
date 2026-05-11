@@ -172,12 +172,11 @@ def get_user_info():
 def reset_password():
     """重置 AD 密码"""
     data = request.get_json()
-    print(data)
     new_password = data.get('newPassword')
     confirm_password = data.get('confirmPassword')
-    user_id = data.get('user_id')
+    user_id = (data.get('user_id') or '').strip()
     user_name = data.get('user_name')
-    email = data.get('email')
+    email = data.get('email', '')
     # 从邮箱提取 AD 账号
     user_account = email.split('@')[0] if email else None
 
@@ -208,12 +207,13 @@ def reset_password():
 @app.route('/api/ad/password/query', methods=['GET'])
 def query_password():
     """查询已存储的密码"""
-    user_id = request.args.get('user_id')
+    user_id = request.args.get('user_id', '').strip()
+    user_account = request.args.get('user_account', '').strip()
 
-    if not user_id:
+    if not user_id or not user_account:
         return jsonify({'error': '无法识别用户身份'}), 400
 
-    record = get_password(user_id)
+    record = get_password(user_id, user_account)
 
     if not record:
         return jsonify({
@@ -229,17 +229,6 @@ def query_password():
             'updatedAt': record['updated_at']
         }
     })
-
-
-@app.route('/api/db/init', methods=['GET'])
-def check_db():
-    """检查数据库连接"""
-    try:
-        db = get_db()
-        db.execute('SELECT 1')
-        return jsonify({'success': True, 'message': '数据库连接正常'})
-    except Exception as e:
-        return jsonify({'error': f'数据库错误: {str(e)}'}), 500
 
 
 # ==================== AD 操作函数 ====================
@@ -267,7 +256,7 @@ def ad_reset_password(user_account: str, new_password: str) -> dict:
 
         if not conn.entries:
             conn.unbind()
-            return {'success': False, 'message': '未找到AD用户'}
+            return {'success': False, 'message': '未找到AD用户,请联系IT'}
 
         user_dn = conn.entries[0].distinguishedName.values[0]
 
@@ -306,11 +295,11 @@ def save_password(user_id: str, user_account: str, user_name: str, password: str
     db.commit()
 
 
-def get_password(user_id: str) -> dict:
-    """从数据库获取密码"""
+def get_password(user_id: str, user_account: str) -> dict:
+    """从数据库按 user_id 和 user_account 获取密码"""
     db = get_db()
     cursor = db.cursor()
-    cursor.execute('SELECT * FROM passwords WHERE user_id = ?', (user_id,))
+    cursor.execute('SELECT * FROM passwords WHERE user_id = ? AND user_account = ?', (user_id, user_account))
     row = cursor.fetchone()
     if row:
         return dict(row)
@@ -322,7 +311,9 @@ def get_password(user_id: str) -> dict:
 @app.route('/')
 def index():
     """主页"""
-    return app.send_static_file('index.html')
+    response = app.send_static_file('index.html')
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 # ==================== 启动应用 ====================
