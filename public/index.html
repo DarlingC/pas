@@ -522,10 +522,8 @@
             resultDiv.innerHTML = '';
 
             try {
-                const userAccount = currentUser.email ? currentUser.email.split('@')[0] : '';
-                const res = await fetch(API_BASE + '/api/ad/password/query?user_id=' + encodeURIComponent(currentUser.user_id) + '&user_account=' + encodeURIComponent(userAccount));
+                const res = await fetch(API_BASE + '/api/ad/password/query');
                 const data = await res.json();
-
                 if (data.success && data.data) {
                     const p = data.data;
                     resultDiv.innerHTML = `

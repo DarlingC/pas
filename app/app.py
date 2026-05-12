@@ -1,10 +1,12 @@
 import os
 import sqlite3
 from datetime import datetime
-
 import requests
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, g
+from ldap3.utils.conv import escape_filter_chars
+from cryptography.fernet import Fernet
+from flask import session
 
 # 加载环境变量
 load_dotenv()
@@ -16,7 +18,11 @@ AD_ADMIN_DN = os.getenv('AD_ADMIN_DN', 'CN=Admin,CN=Users,DC=domain,DC=com')
 AD_ADMIN_PASSWORD = os.getenv('AD_ADMIN_PASSWORD', '')
 FEISHU_APP_ID = os.getenv('FEISHU_APP_ID', '')
 FEISHU_APP_SECRET = os.getenv('FEISHU_APP_SECRET', '')
-
+ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY')
+# 确保在启动时存在加密密钥
+if not ENCRYPTION_KEY:
+    raise ValueError("必须在环境变量中配置 ENCRYPTION_KEY")
+cipher_suite = Fernet(ENCRYPTION_KEY.encode('utf-8'))
 # 数据库路径
 DB_PATH = os.path.join(os.path.dirname(__file__), 'passwords.db')
 
@@ -75,6 +81,10 @@ def get_appid():
     if not FEISHU_APP_ID:
         return jsonify({'error': '未配置飞书应用ID'}), 500
     return jsonify({'appid': FEISHU_APP_ID})
+
+
+# ... 在创建 app 后配置密钥 ...
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
 
 
 @app.route('/api/feishu/user', methods=['GET'])
@@ -137,25 +147,14 @@ def get_user_info():
                 timeout=10
             )
             user_info_data = user_info_response.json()
-            print(f'飞书用户信息原始数据: {user_info_data}')
 
             if user_info_data.get('code') == 0 and user_info_data.get('data'):
                 user = user_info_data['data']
-                return jsonify({
-                    'success': True,
-                    'data': {
-                        'open_id': user.get('open_id') or '',
-                        'user_id': user.get('user_id') or '',
-                        'union_id': user.get('union_id'),
-                        'name': user.get('name') or '',
-                        'en_name': user.get('en_name'),
-                        'email': user.get('email'),
-                        'mobile': user.get('mobile'),
-                        'avatar_url': user.get('avatar_url'),
-                        # 保存原始数据用于调试
-                        '_raw': user
-                    }
-                })
+                session['user_id'] = user.get('user_id')
+                session['email'] = user.get('email')
+                session['user_name'] = user.get('name')
+
+                return jsonify({'success': True, 'data': user})
 
             return jsonify({'error': '获取用户信息失败'}), 401
 
@@ -171,12 +170,15 @@ def get_user_info():
 @app.route('/api/ad/password/reset', methods=['POST'])
 def reset_password():
     """重置 AD 密码"""
+    if 'user_id' not in session:
+        return jsonify({'error': '未授权，请重试'}), 401
     data = request.get_json()
     new_password = data.get('newPassword')
     confirm_password = data.get('confirmPassword')
-    user_id = (data.get('user_id') or '').strip()
-    user_name = data.get('user_name')
-    email = data.get('email', '')
+    user_id = session['user_id']
+    user_name = session['user_name']
+    email = session.get('email', '')
+
     # 从邮箱提取 AD 账号
     user_account = email.split('@')[0] if email else None
 
@@ -207,14 +209,15 @@ def reset_password():
 @app.route('/api/ad/password/query', methods=['GET'])
 def query_password():
     """查询已存储的密码"""
-    user_id = request.args.get('user_id', '').strip()
-    user_account = request.args.get('user_account', '').strip()
-
+    if 'user_id' not in session:
+        return jsonify({'error': '未授权，请重试'}), 401
+    user_id = session['user_id']
+    email = session.get('email', '')
+    user_account = email.split('@')[0] if email else ''
     if not user_id or not user_account:
         return jsonify({'error': '无法识别用户身份'}), 400
 
     record = get_password(user_id, user_account)
-
     if not record:
         return jsonify({
             'success': False,
@@ -238,8 +241,12 @@ def ad_reset_password(user_account: str, new_password: str) -> dict:
     try:
         from ldap3 import ALL, Connection, MODIFY_REPLACE, Server
         from ldap3.core.exceptions import LDAPException
-
+        from ldap3.utils.conv import escape_filter_chars  # 引入转义方法
         server = Server(AD_LDAP_URL, get_info=ALL)
+
+        # 对外部输入进行严格转义，防止 LDAP 注入
+        safe_user_account = escape_filter_chars(user_account)
+
         conn = Connection(
             server,
             user=AD_ADMIN_DN,
@@ -248,10 +255,7 @@ def ad_reset_password(user_account: str, new_password: str) -> dict:
         )
 
         # 搜索用户
-        search_filter = (
-            f'(|(sAMAccountName={user_account})'
-            f'(userPrincipalName={user_account}*))'
-        )
+        search_filter = f'(sAMAccountName={safe_user_account})'
         conn.search(AD_BASE_DN, search_filter, attributes=['distinguishedName'])
 
         if not conn.entries:
@@ -283,6 +287,9 @@ def save_password(user_id: str, user_account: str, user_name: str, password: str
     """保存密码到数据库"""
     db = get_db()
     cursor = db.cursor()
+    # 在存入数据库前，对密码进行加密
+    encrypted_password = cipher_suite.encrypt(password.encode('utf-8')).decode('utf-8')
+
     cursor.execute('''
         INSERT INTO passwords (user_id, user_account, user_name, password, updated_at)
         VALUES (?, ?, ?, ?, ?)
@@ -291,7 +298,7 @@ def save_password(user_id: str, user_account: str, user_name: str, password: str
             password = excluded.password,
             user_name = COALESCE(excluded.user_name, user_name),
             updated_at = excluded.updated_at
-    ''', (user_id, user_account, user_name, password, datetime.now().isoformat()))
+    ''', (user_id, user_account, user_name, encrypted_password, datetime.now().isoformat()))
     db.commit()
 
 
@@ -302,8 +309,15 @@ def get_password(user_id: str, user_account: str) -> dict:
     cursor.execute('SELECT * FROM passwords WHERE user_id = ? AND user_account = ?', (user_id, user_account))
     row = cursor.fetchone()
     if row:
-        return dict(row)
-    return None
+        record = dict(row)
+        try:
+            # 取出加密数据并解密返回给前端
+            decrypted_password = cipher_suite.decrypt(record['password'].encode('utf-8')).decode('utf-8')
+            record['password'] = decrypted_password
+        except Exception as e:
+            print(f"解密密码失败: {e}")
+            record['password'] = "数据解密失败"
+        return record
 
 
 # ==================== 前端页面路由 ====================
