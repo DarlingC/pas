@@ -1,12 +1,15 @@
 import os
 import sqlite3
+import time
 from datetime import datetime
 import requests
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, g
-from ldap3.utils.conv import escape_filter_chars
 from cryptography.fernet import Fernet
 from flask import session
+from ldap3 import ALL, Connection, MODIFY_REPLACE, Server
+from ldap3.core.exceptions import LDAPException
+from ldap3.utils.conv import escape_filter_chars  # 引入转义方法
 
 # 加载环境变量
 load_dotenv()
@@ -75,6 +78,40 @@ def init_db():
 
 # ==================== 飞书相关接口 ====================
 
+# 新增：用于在内存中缓存 token 和过期时间的全局字典
+_token_cache = {
+    'tenant_access_token': None,
+    'expire_at': 0
+}
+
+
+def get_valid_tenant_access_token():
+    """获取有效的 tenant_access_token（带缓存和过期自动刷新机制）"""
+    current_time = time.time()
+
+    # 检查缓存是否存在，且剩余时间大于 30分钟（1800秒）
+    if _token_cache['tenant_access_token'] and (_token_cache['expire_at'] - current_time > 1800):
+        return _token_cache['tenant_access_token']
+
+    # 缓存失效或即将失效，重新请求飞书接口
+    token_url = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal'
+    token_response = requests.post(
+        token_url,
+        json={
+            'app_id': FEISHU_APP_ID,
+            'app_secret': FEISHU_APP_SECRET
+        }
+    )
+    token_data = token_response.json()
+
+    if token_data.get('code') == 0:
+        _token_cache['tenant_access_token'] = token_data.get('tenant_access_token')
+        # expire_at = 当前时间戳 + 飞书返回的有效时间(通常是7200秒)
+        _token_cache['expire_at'] = current_time + token_data.get('expire', 7200)
+        return _token_cache['tenant_access_token']
+
+    return None
+
 @app.route('/api/feishu/appid', methods=['GET'])
 def get_appid():
     """返回飞书应用ID"""
@@ -94,30 +131,17 @@ def get_user_info():
 
     if code:
         try:
-            # 获取 app_access_token
-            token_url = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal'
-            token_response = requests.post(
-                token_url,
-                json={
-                    'app_id': FEISHU_APP_ID,
-                    'app_secret': FEISHU_APP_SECRET
-                },
-                timeout=10
-            )
-            token_data = token_response.json()
-
-            if token_data.get('code') != 0:
-                return jsonify({'error': '获取access_token失败'}), 401
-
-            app_access_token = token_data.get('tenant_access_token')
-
+            # 1. 获取（或从缓存读取） tenant_access_token
+            tenant_access_token = get_valid_tenant_access_token()
+            if not tenant_access_token:
+                return jsonify({'error': '获取 tenant_access_token 失败'}), 401
             # 用 code 换取 user_access_token
             user_token_url = 'https://open.feishu.cn/open-apis/authen/v1/oidc/access_token'
             user_token_response = requests.post(
                 user_token_url,
                 headers={
                     'Content-Type': 'application/json',
-                    'Authorization': f'Bearer {app_access_token}'
+                    'Authorization': f'Bearer {tenant_access_token}'
                 },
                 json={
                     'grant_type': 'authorization_code',
@@ -239,9 +263,6 @@ def query_password():
 def ad_reset_password(user_account: str, new_password: str) -> dict:
     """修改 AD 密码"""
     try:
-        from ldap3 import ALL, Connection, MODIFY_REPLACE, Server
-        from ldap3.core.exceptions import LDAPException
-        from ldap3.utils.conv import escape_filter_chars  # 引入转义方法
         server = Server(AD_LDAP_URL, get_info=ALL)
 
         # 对外部输入进行严格转义，防止 LDAP 注入
