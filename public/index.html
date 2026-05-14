@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>加载中...</title>
+    <!-- CSS 样式保持不变 -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
@@ -174,7 +175,6 @@
 
         // 检测是否在飞书环境中
         function isFeishuEnvironment() {
-            // 检查 User Agent 或特定环境标识
             const ua = navigator.userAgent.toLowerCase();
             return ua.includes('lark') || ua.includes('feishu');
         }
@@ -198,7 +198,6 @@
 
         // 获取飞书用户信息
         async function getFeishuUser() {
-            // 先快速检查是否在飞书环境中
             if (!isFeishuEnvironment()) {
                 throw new Error('请在飞书应用内打开本页面');
             }
@@ -279,7 +278,6 @@
             };
         }
 
-        // 更新密码验证状态
         function updatePasswordStatus(inputId, hintId) {
             const input = document.getElementById(inputId);
             const hint = document.getElementById(hintId);
@@ -309,7 +307,6 @@
             return result.valid;
         }
 
-        // 更新确认密码状态
         function updateConfirmStatus() {
             const newPwd = document.getElementById('new-password').value;
             const confirmPwd = document.getElementById('confirm-password').value;
@@ -322,7 +319,6 @@
                 return false;
             }
 
-            // 检查两次密码是否一致
             if (confirmPwd !== newPwd) {
                 hint.textContent = '密码不一致';
                 hint.classList.remove('success');
@@ -342,8 +338,6 @@
 
         function showHome(user) {
             currentUser = user;
-
-            // AD 用户名（从邮箱提取）
             const adUsername = user.email ? user.email.split('@')[0] : '';
 
             document.getElementById('app').innerHTML = `
@@ -394,7 +388,6 @@
                 document.getElementById('query-btn').disabled = true;
             }
 
-            // 绑定密码显示/隐藏按钮事件
             document.querySelectorAll('.toggle-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const targetId = this.getAttribute('data-target');
@@ -402,7 +395,6 @@
                 });
             });
 
-            // 绑定密码输入事件
             document.getElementById('new-password').addEventListener('input', function() {
                 updatePasswordStatus('new-password', 'new-hint');
                 updateConfirmStatus();
@@ -422,7 +414,6 @@
             document.getElementById('query-btn').addEventListener('click', queryPassword);
         }
 
-        // 更新重置按钮状态（优化：避免重复调用）
         function updateResetButton() {
             const newPwd = document.getElementById('new-password').value;
             const confirmPwd = document.getElementById('confirm-password').value;
@@ -467,7 +458,6 @@
                 return;
             }
 
-            // 验证密码复杂度
             const validation = validatePassword(newPassword);
             if (!validation.valid) {
                 alertEl.innerHTML = '<div class="alert alert-error">' + escapeHtml(validation.message) + '</div>';
@@ -483,10 +473,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         newPassword,
-                        confirmPassword,
-                        user_id: currentUser.user_id,
-                        user_name: currentUser.name,
-                        email: currentUser.email
+                        confirmPassword
                     })
                 });
 
@@ -544,7 +531,6 @@
                     document.getElementById('query-password').value = p.password;
                     document.getElementById('update-time').textContent = '最后重置时间：' + new Date(p.updatedAt).toLocaleString('zh-CN');
 
-                    // 绑定事件监听器
                     document.getElementById('toggle-query-btn').addEventListener('click', function() {
                         togglePassword('query-password');
                     });
@@ -570,11 +556,9 @@
             }
 
             try {
-                // 优先使用现代 Clipboard API
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     await navigator.clipboard.writeText(input.value);
                 } else {
-                    // 降级方案：创建临时 textarea 避免选中输入框
                     const textarea = document.createElement('textarea');
                     textarea.value = input.value;
                     textarea.style.position = 'fixed';
@@ -601,12 +585,10 @@
         async function init() {
             try {
                 const user = await getFeishuUser();
-                // 验证成功后才设置标题
                 document.title = 'AD 密码管理';
                 showHome(user);
             } catch (err) {
                 console.error('初始化失败:', err);
-                // 验证失败时设置标题为"出错了"
                 document.title = '出错了';
                 showError(err.message);
             }

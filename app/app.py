@@ -5,6 +5,7 @@ import threading
 import re
 from datetime import datetime
 import requests
+import logging
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, g, session
 from cryptography.fernet import Fernet
@@ -12,6 +13,13 @@ from ldap3 import ALL, Connection, MODIFY_REPLACE, Server
 from ldap3.core.exceptions import LDAPException
 from ldap3.utils.conv import escape_filter_chars  # 引入转义方法
 
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
 # 加载环境变量
 load_dotenv()
 
@@ -26,6 +34,7 @@ FEISHU_APP_SECRET = os.getenv('FEISHU_APP_SECRET', '')
 # 获取加密密钥
 ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY')
 if not ENCRYPTION_KEY:
+    logger.error("环境变量中缺少 ENCRYPTION_KEY")
     raise ValueError("必须在环境变量中配置 ENCRYPTION_KEY")
 cipher_suite = Fernet(ENCRYPTION_KEY.encode('utf-8'))
 
@@ -147,7 +156,7 @@ def get_valid_tenant_access_token():
 
                 return new_token
         except Exception as e:
-            print(f"获取飞书 Token 时发生错误: {e}")
+            logger.error(f"获取飞书 Token 时发生错误: {e}")
 
     return None
 
@@ -231,13 +240,13 @@ def get_user_info():
                 session['user_id'] = user.get('user_id')
                 session['email'] = user.get('email')
                 session['user_name'] = user.get('name')
-
+                logger.info(f"用户已授权登录: {user.get('name')} ({user.get('user_id')})")
                 return jsonify({'success': True, 'data': user})
 
             return jsonify({'error': '获取用户信息失败'}), 401
 
         except Exception as e:
-            print(f'获取用户信息错误: {e}')
+            logger.error(f"获取用户信息错误: {e}")
             return jsonify({'error': '服务器内部通讯错误，请稍后再试'}), 500
 
     return jsonify({'error': '缺少授权码'}), 400
@@ -255,15 +264,6 @@ def reset_password():
     new_password = data.get('newPassword')
     confirm_password = data.get('confirmPassword')
 
-    if not validate_password_complexity(new_password):
-        return jsonify({'error': '密码不符合复杂度要求（需含大小写字母、数字或特殊字符中的三种）'}), 400
-
-    # 强制从 Session 中获取可信信息
-    user_id = session['user_id']
-    user_name = session['user_name']
-    email = session.get('email', '')
-    user_account = email.split('@')[0] if email else None
-
     if not new_password or not confirm_password:
         return jsonify({'error': '请填写新密码和确认密码'}), 400
 
@@ -272,6 +272,15 @@ def reset_password():
 
     if len(new_password) < 8:
         return jsonify({'error': '密码长度不能少于8位'}), 400
+
+    if not validate_password_complexity(new_password):
+        return jsonify({'error': '密码不符合复杂度要求（需含大小写字母、数字或特殊字符中的三种）'}), 400
+
+    # 强制从 Session 中获取可信信息
+    user_id = session['user_id']
+    user_name = session['user_name']
+    email = session.get('email', '')
+    user_account = email.split('@')[0] if email else None
 
     if not user_account:
         return jsonify({'error': '无法获取用户账号信息'}), 400
@@ -284,7 +293,7 @@ def reset_password():
 
     # 保存加密密码到数据库
     save_password(user_id, user_account, user_name, new_password)
-
+    logger.info(f"账号 {user_account} 密码重置成功")
     return jsonify({'success': True, 'message': '密码重置成功'})
 
 
@@ -340,17 +349,24 @@ def ad_reset_password(user_account: str, new_password: str) -> dict:
 
             # 修改密码 (使用 unicodePwd)
             password_value = f'"{new_password}"'.encode('utf-16-le')
-            conn.modify(user_dn, {'unicodePwd': [(MODIFY_REPLACE, [password_value])]})
+            # 在 AD 中，lockoutTime=0 表示解除锁定
+            changes = {
+                'unicodePwd': [(MODIFY_REPLACE, [password_value])],
+                'lockoutTime': [(MODIFY_REPLACE, [0])]
+            }
+            conn.modify(user_dn, changes)
 
             if conn.result['result'] == 0:
                 return {'success': True, 'message': '密码修改成功'}
             else:
-                return {'success': False, 'message': f'密码修改失败: {conn.result}'}
+                return {'success': False, 'message': f"修改失败: {conn.result.get('description', '未知错误')}"}
 
     except LDAPException as e:
-        return {'success': False, 'message': f'LDAP错误: {str(e)}'}
+        logger.error(f"LDAP操作异常: {str(e)}")
+        return {'success': False, 'message': f'LDAP错误: 无法连接或修改'}
     except Exception as e:
-        return {'success': False, 'message': f'错误: {str(e)}'}
+        logger.error(f"AD修改未知异常: {str(e)}")
+        return {'success': False, 'message': f'系统内部错误'}
 
 
 # ==================== 数据库操作函数 ====================
@@ -388,7 +404,7 @@ def get_password(user_id: str, user_account: str) -> dict:
             decrypted_password = cipher_suite.decrypt(record['password'].encode('utf-8')).decode('utf-8')
             record['password'] = decrypted_password
         except Exception as e:
-            print(f"解密密码失败: {e}")
+            logger.error(f"解密密码失败: {e}")
             record['password'] = "数据解密失败"
         return record
     return None
@@ -412,5 +428,5 @@ if __name__ == '__main__':
     host = os.getenv('FLASK_HOST', '0.0.0.0')
     port = int(os.getenv('FLASK_PORT', 5002))
 
-    print(f'启动服务: http://{host}:{port}')
+    logger.info(f'启动服务: http://{host}:{port}')
     app.run(host=host, port=port, debug=False)
