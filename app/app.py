@@ -58,7 +58,7 @@ def init_db():
     """初始化数据库"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    # 创建表，包含 user_account 字段（放在 user_id 后面）
+    # 1. 创建密码表
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS passwords (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,44 +70,54 @@ def init_db():
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    # 添加 user_account 字段（如果不存在）
     try:
         cursor.execute('ALTER TABLE passwords ADD COLUMN user_account TEXT')
     except sqlite3.OperationalError:
         pass
+
+    # 2. 新增：创建系统缓存表（用于多进程共享 Token）
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS system_cache (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            expire_at REAL NOT NULL
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
 
 # ==================== 飞书相关接口 ====================
 
-# 内存中缓存 token 和过期时间的全局字典
-_token_cache = {
-    'tenant_access_token': None,
-    'expire_at': 0
-}
-
-# 增加线程锁，防止高并发时的缓存击穿
+# 保留线程锁，防止单个进程内的多线程并发击穿飞书接口
 _token_lock = threading.Lock()
 
 
 def get_valid_tenant_access_token():
-    """获取有效的 tenant_access_token（带缓存、并发锁和过期自动刷新机制）"""
+    """获取有效的 tenant_access_token（使用 SQLite 共享缓存，完美支持多进程部署）"""
     current_time = time.time()
+    db = get_db()
+    cursor = db.cursor()
 
-    # 1. 第一层快速检查：如果缓存存在且剩余时间 > 30分钟，直接返回
-    if _token_cache['tenant_access_token'] and (_token_cache['expire_at'] - current_time > 1800):
-        return _token_cache['tenant_access_token']
+    # 1. 第一层快速检查：从数据库读取缓存
+    cursor.execute('SELECT value, expire_at FROM system_cache WHERE key = ?', ('tenant_access_token',))
+    row = cursor.fetchone()
 
-    # 2. 缓存失效时，加锁防止多个请求同时去飞书拉取
+    # 如果缓存存在且剩余时间 > 30分钟(1800秒)，直接返回
+    if row and (row['expire_at'] - current_time > 1800):
+        return row['value']
+
+    # 2. 缓存失效时，加锁防止多线程重复拉取
     with _token_lock:
-        # 获取到锁后进行第二层检查（防止在等待锁的期间，别的线程已经更新了Token）
-        current_time = time.time()
-        if _token_cache['tenant_access_token'] and (_token_cache['expire_at'] - current_time > 1800):
-            return _token_cache['tenant_access_token']
+        # 获取到锁后进行第二层检查（防止在等待锁的期间，别的线程/进程已经更新了数据库）
+        cursor.execute('SELECT value, expire_at FROM system_cache WHERE key = ?', ('tenant_access_token',))
+        row = cursor.fetchone()
+        if row and (row['expire_at'] - current_time > 1800):
+            return row['value']
 
         try:
-            # 重新请求飞书接口 (加上 timeout 避免网络阻塞导致服务卡死)
+            # 重新请求飞书接口
             token_url = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal'
             token_response = requests.post(
                 token_url,
@@ -115,17 +125,27 @@ def get_valid_tenant_access_token():
                     'app_id': FEISHU_APP_ID,
                     'app_secret': FEISHU_APP_SECRET
                 },
-                timeout=5  # 设置 5 秒超时保护
+                timeout=5
             )
             token_data = token_response.json()
 
             if token_data.get('code') == 0:
-                _token_cache['tenant_access_token'] = token_data.get('tenant_access_token')
+                new_token = token_data.get('tenant_access_token')
                 # expire_at = 当前时间戳 + 飞书返回的有效时间(通常是7200秒)
-                _token_cache['expire_at'] = current_time + token_data.get('expire', 7200)
-                return _token_cache['tenant_access_token']
+                expire_at = current_time + token_data.get('expire', 7200)
+
+                # 写入数据库，所有进程将共享这个最新 Token
+                cursor.execute('''
+                    INSERT INTO system_cache (key, value, expire_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET
+                        value = excluded.value,
+                        expire_at = excluded.expire_at
+                ''', ('tenant_access_token', new_token, expire_at))
+                db.commit()
+
+                return new_token
         except Exception as e:
-            # 捕获网络异常，防止直接抛出 500 错误引发服务崩溃
             print(f"获取飞书 Token 时发生错误: {e}")
 
     return None
@@ -203,7 +223,7 @@ def get_user_info():
 
         except Exception as e:
             print(f'获取用户信息错误: {e}')
-            return jsonify({'error': str(e)}), 500
+            return jsonify({'error': '服务器内部通讯错误，请稍后再试'}), 500
 
     return jsonify({'error': '缺少授权码'}), 400
 
