@@ -1,12 +1,12 @@
 import os
 import sqlite3
 import time
+import threading
 from datetime import datetime
 import requests
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request, g
+from flask import Flask, jsonify, request, g, session
 from cryptography.fernet import Fernet
-from flask import session
 from ldap3 import ALL, Connection, MODIFY_REPLACE, Server
 from ldap3.core.exceptions import LDAPException
 from ldap3.utils.conv import escape_filter_chars  # 引入转义方法
@@ -21,16 +21,19 @@ AD_ADMIN_DN = os.getenv('AD_ADMIN_DN', 'CN=Admin,CN=Users,DC=domain,DC=com')
 AD_ADMIN_PASSWORD = os.getenv('AD_ADMIN_PASSWORD', '')
 FEISHU_APP_ID = os.getenv('FEISHU_APP_ID', '')
 FEISHU_APP_SECRET = os.getenv('FEISHU_APP_SECRET', '')
+
+# 获取加密密钥
 ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY')
-# 确保在启动时存在加密密钥
 if not ENCRYPTION_KEY:
     raise ValueError("必须在环境变量中配置 ENCRYPTION_KEY")
 cipher_suite = Fernet(ENCRYPTION_KEY.encode('utf-8'))
+
 # 数据库路径
 DB_PATH = os.path.join(os.path.dirname(__file__), 'passwords.db')
 
 # 创建 Flask 应用
 app = Flask(__name__, static_folder='../public', static_url_path='')
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
 
 
 # ==================== 数据库相关函数 ====================
@@ -78,39 +81,55 @@ def init_db():
 
 # ==================== 飞书相关接口 ====================
 
-# 新增：用于在内存中缓存 token 和过期时间的全局字典
+# 内存中缓存 token 和过期时间的全局字典
 _token_cache = {
     'tenant_access_token': None,
     'expire_at': 0
 }
 
+# 增加线程锁，防止高并发时的缓存击穿
+_token_lock = threading.Lock()
+
 
 def get_valid_tenant_access_token():
-    """获取有效的 tenant_access_token（带缓存和过期自动刷新机制）"""
+    """获取有效的 tenant_access_token（带缓存、并发锁和过期自动刷新机制）"""
     current_time = time.time()
 
-    # 检查缓存是否存在，且剩余时间大于 30分钟（1800秒）
+    # 1. 第一层快速检查：如果缓存存在且剩余时间 > 30分钟，直接返回
     if _token_cache['tenant_access_token'] and (_token_cache['expire_at'] - current_time > 1800):
         return _token_cache['tenant_access_token']
 
-    # 缓存失效或即将失效，重新请求飞书接口
-    token_url = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal'
-    token_response = requests.post(
-        token_url,
-        json={
-            'app_id': FEISHU_APP_ID,
-            'app_secret': FEISHU_APP_SECRET
-        }
-    )
-    token_data = token_response.json()
+    # 2. 缓存失效时，加锁防止多个请求同时去飞书拉取
+    with _token_lock:
+        # 获取到锁后进行第二层检查（防止在等待锁的期间，别的线程已经更新了Token）
+        current_time = time.time()
+        if _token_cache['tenant_access_token'] and (_token_cache['expire_at'] - current_time > 1800):
+            return _token_cache['tenant_access_token']
 
-    if token_data.get('code') == 0:
-        _token_cache['tenant_access_token'] = token_data.get('tenant_access_token')
-        # expire_at = 当前时间戳 + 飞书返回的有效时间(通常是7200秒)
-        _token_cache['expire_at'] = current_time + token_data.get('expire', 7200)
-        return _token_cache['tenant_access_token']
+        try:
+            # 重新请求飞书接口 (加上 timeout 避免网络阻塞导致服务卡死)
+            token_url = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal'
+            token_response = requests.post(
+                token_url,
+                json={
+                    'app_id': FEISHU_APP_ID,
+                    'app_secret': FEISHU_APP_SECRET
+                },
+                timeout=5  # 设置 5 秒超时保护
+            )
+            token_data = token_response.json()
+
+            if token_data.get('code') == 0:
+                _token_cache['tenant_access_token'] = token_data.get('tenant_access_token')
+                # expire_at = 当前时间戳 + 飞书返回的有效时间(通常是7200秒)
+                _token_cache['expire_at'] = current_time + token_data.get('expire', 7200)
+                return _token_cache['tenant_access_token']
+        except Exception as e:
+            # 捕获网络异常，防止直接抛出 500 错误引发服务崩溃
+            print(f"获取飞书 Token 时发生错误: {e}")
 
     return None
+
 
 @app.route('/api/feishu/appid', methods=['GET'])
 def get_appid():
@@ -118,10 +137,6 @@ def get_appid():
     if not FEISHU_APP_ID:
         return jsonify({'error': '未配置飞书应用ID'}), 500
     return jsonify({'appid': FEISHU_APP_ID})
-
-
-# ... 在创建 app 后配置密钥 ...
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
 
 
 @app.route('/api/feishu/user', methods=['GET'])
@@ -133,9 +148,11 @@ def get_user_info():
         try:
             # 1. 获取（或从缓存读取） tenant_access_token
             tenant_access_token = get_valid_tenant_access_token()
+
             if not tenant_access_token:
-                return jsonify({'error': '获取 tenant_access_token 失败'}), 401
-            # 用 code 换取 user_access_token
+                return jsonify({'error': '获取 tenant_access_token 失败，请检查网络或配置'}), 401
+
+            # 2. 用 code 换取 user_access_token
             user_token_url = 'https://open.feishu.cn/open-apis/authen/v1/oidc/access_token'
             user_token_response = requests.post(
                 user_token_url,
@@ -147,7 +164,7 @@ def get_user_info():
                     'grant_type': 'authorization_code',
                     'code': code
                 },
-                timeout=10
+                timeout=5
             )
             user_token_data = user_token_response.json()
 
@@ -160,7 +177,7 @@ def get_user_info():
             if not user_access_token:
                 return jsonify({'error': '未获取到user_access_token'}), 401
 
-            # 获取用户信息
+            # 3. 获取用户信息
             user_info_url = 'https://open.feishu.cn/open-apis/authen/v1/user_info'
             user_info_response = requests.get(
                 user_info_url,
@@ -168,12 +185,14 @@ def get_user_info():
                     'Content-Type': 'application/json',
                     'Authorization': f'Bearer {user_access_token}'
                 },
-                timeout=10
+                timeout=5
             )
             user_info_data = user_info_response.json()
 
             if user_info_data.get('code') == 0 and user_info_data.get('data'):
                 user = user_info_data['data']
+
+                # 将身份信息写入 Session 保护
                 session['user_id'] = user.get('user_id')
                 session['email'] = user.get('email')
                 session['user_name'] = user.get('name')
@@ -196,14 +215,15 @@ def reset_password():
     """重置 AD 密码"""
     if 'user_id' not in session:
         return jsonify({'error': '未授权，请重试'}), 401
+
     data = request.get_json()
     new_password = data.get('newPassword')
     confirm_password = data.get('confirmPassword')
+
+    # 强制从 Session 中获取可信信息
     user_id = session['user_id']
     user_name = session['user_name']
     email = session.get('email', '')
-
-    # 从邮箱提取 AD 账号
     user_account = email.split('@')[0] if email else None
 
     if not new_password or not confirm_password:
@@ -224,7 +244,7 @@ def reset_password():
     if not result['success']:
         return jsonify({'error': result['message']}), 500
 
-    # 保存密码到数据库
+    # 保存加密密码到数据库
     save_password(user_id, user_account, user_name, new_password)
 
     return jsonify({'success': True, 'message': '密码重置成功'})
@@ -235,13 +255,17 @@ def query_password():
     """查询已存储的密码"""
     if 'user_id' not in session:
         return jsonify({'error': '未授权，请重试'}), 401
+
+    # 强制从 Session 中获取可信信息
     user_id = session['user_id']
     email = session.get('email', '')
     user_account = email.split('@')[0] if email else ''
+
     if not user_id or not user_account:
         return jsonify({'error': '无法识别用户身份'}), 400
 
     record = get_password(user_id, user_account)
+
     if not record:
         return jsonify({
             'success': False,
@@ -263,11 +287,10 @@ def query_password():
 def ad_reset_password(user_account: str, new_password: str) -> dict:
     """修改 AD 密码"""
     try:
-        server = Server(AD_LDAP_URL, get_info=ALL)
-
         # 对外部输入进行严格转义，防止 LDAP 注入
         safe_user_account = escape_filter_chars(user_account)
 
+        server = Server(AD_LDAP_URL, get_info=ALL)
         conn = Connection(
             server,
             user=AD_ADMIN_DN,
@@ -305,10 +328,11 @@ def ad_reset_password(user_account: str, new_password: str) -> dict:
 # ==================== 数据库操作函数 ====================
 
 def save_password(user_id: str, user_account: str, user_name: str, password: str):
-    """保存密码到数据库"""
+    """加密并保存密码到数据库"""
     db = get_db()
     cursor = db.cursor()
-    # 在存入数据库前，对密码进行加密
+
+    # 存入数据库前，对密码进行加密
     encrypted_password = cipher_suite.encrypt(password.encode('utf-8')).decode('utf-8')
 
     cursor.execute('''
@@ -324,7 +348,7 @@ def save_password(user_id: str, user_account: str, user_name: str, password: str
 
 
 def get_password(user_id: str, user_account: str) -> dict:
-    """从数据库按 user_id 和 user_account 获取密码"""
+    """从数据库获取密码并解密"""
     db = get_db()
     cursor = db.cursor()
     cursor.execute('SELECT * FROM passwords WHERE user_id = ? AND user_account = ?', (user_id, user_account))
@@ -332,13 +356,14 @@ def get_password(user_id: str, user_account: str) -> dict:
     if row:
         record = dict(row)
         try:
-            # 取出加密数据并解密返回给前端
+            # 取出加密数据并解密
             decrypted_password = cipher_suite.decrypt(record['password'].encode('utf-8')).decode('utf-8')
             record['password'] = decrypted_password
         except Exception as e:
             print(f"解密密码失败: {e}")
             record['password'] = "数据解密失败"
         return record
+    return None
 
 
 # ==================== 前端页面路由 ====================
