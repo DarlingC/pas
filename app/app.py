@@ -334,7 +334,6 @@ def ad_reset_password(user_account: str, new_password: str) -> dict:
             conn.search(AD_BASE_DN, search_filter, attributes=['distinguishedName'])
 
             if not conn.entries:
-                conn.unbind()
                 return {'success': False, 'message': '未找到AD用户,请联系IT'}
 
             user_dn = conn.entries[0].distinguishedName.values[0]
@@ -342,8 +341,6 @@ def ad_reset_password(user_account: str, new_password: str) -> dict:
             # 修改密码 (使用 unicodePwd)
             password_value = f'"{new_password}"'.encode('utf-16-le')
             conn.modify(user_dn, {'unicodePwd': [(MODIFY_REPLACE, [password_value])]})
-
-            conn.unbind()
 
             if conn.result['result'] == 0:
                 return {'success': True, 'message': '密码修改成功'}
