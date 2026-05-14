@@ -2,6 +2,7 @@ import os
 import sqlite3
 import time
 import threading
+import re
 from datetime import datetime
 import requests
 from dotenv import load_dotenv
@@ -151,6 +152,20 @@ def get_valid_tenant_access_token():
     return None
 
 
+def validate_password_complexity(password: str) -> bool:
+    """后端同步校验密码复杂度：至少8位，包含大写、小写、数字、特殊字符中的3种"""
+    if len(password) < 8:
+        return False
+
+    count = 0
+    if re.search(r"[a-z]", password): count += 1  # 包含小写
+    if re.search(r"[A-Z]", password): count += 1  # 包含大写
+    if re.search(r"\d", password): count += 1  # 包含数字
+    if re.search(r"[!@#$%^&*(),.?\":{}|<>]", password): count += 1  # 包含特殊字符
+
+    return count >= 3
+
+
 @app.route('/api/feishu/appid', methods=['GET'])
 def get_appid():
     """返回飞书应用ID"""
@@ -240,6 +255,9 @@ def reset_password():
     new_password = data.get('newPassword')
     confirm_password = data.get('confirmPassword')
 
+    if not validate_password_complexity(new_password):
+        return jsonify({'error': '密码不符合复杂度要求（需含大小写字母、数字或特殊字符中的三种）'}), 400
+
     # 强制从 Session 中获取可信信息
     user_id = session['user_id']
     user_name = session['user_name']
@@ -309,35 +327,28 @@ def ad_reset_password(user_account: str, new_password: str) -> dict:
     try:
         # 对外部输入进行严格转义，防止 LDAP 注入
         safe_user_account = escape_filter_chars(user_account)
-
         server = Server(AD_LDAP_URL, get_info=ALL)
-        conn = Connection(
-            server,
-            user=AD_ADMIN_DN,
-            password=AD_ADMIN_PASSWORD,
-            auto_bind=True
-        )
+        with Connection(server, user=AD_ADMIN_DN, password=AD_ADMIN_PASSWORD, auto_bind=True) as conn:
+            # 搜索用户
+            search_filter = f'(sAMAccountName={safe_user_account})'
+            conn.search(AD_BASE_DN, search_filter, attributes=['distinguishedName'])
 
-        # 搜索用户
-        search_filter = f'(sAMAccountName={safe_user_account})'
-        conn.search(AD_BASE_DN, search_filter, attributes=['distinguishedName'])
+            if not conn.entries:
+                conn.unbind()
+                return {'success': False, 'message': '未找到AD用户,请联系IT'}
 
-        if not conn.entries:
+            user_dn = conn.entries[0].distinguishedName.values[0]
+
+            # 修改密码 (使用 unicodePwd)
+            password_value = f'"{new_password}"'.encode('utf-16-le')
+            conn.modify(user_dn, {'unicodePwd': [(MODIFY_REPLACE, [password_value])]})
+
             conn.unbind()
-            return {'success': False, 'message': '未找到AD用户,请联系IT'}
 
-        user_dn = conn.entries[0].distinguishedName.values[0]
-
-        # 修改密码 (使用 unicodePwd)
-        password_value = f'"{new_password}"'.encode('utf-16-le')
-        conn.modify(user_dn, {'unicodePwd': [(MODIFY_REPLACE, [password_value])]})
-
-        conn.unbind()
-
-        if conn.result['result'] == 0:
-            return {'success': True, 'message': '密码修改成功'}
-        else:
-            return {'success': False, 'message': f'密码修改失败: {conn.result}'}
+            if conn.result['result'] == 0:
+                return {'success': True, 'message': '密码修改成功'}
+            else:
+                return {'success': False, 'message': f'密码修改失败: {conn.result}'}
 
     except LDAPException as e:
         return {'success': False, 'message': f'LDAP错误: {str(e)}'}
