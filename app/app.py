@@ -42,7 +42,7 @@ cipher_suite = Fernet(ENCRYPTION_KEY.encode('utf-8'))
 DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'passwords.db')
 
 # 创建 Flask 应用
-app = Flask(__name__, static_folder='../public', static_url_path='')
+app = Flask(__name__, static_folder='static', static_url_path='')
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
 
 
