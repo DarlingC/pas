@@ -1,0 +1,17 @@
+services:
+  web:
+    build: .
+    container_name: feishu_pwd_web
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    networks:
+      - caddy_default
+    expose:
+      - "5002"
+
+networks:
+  caddy_default:
+    external: true

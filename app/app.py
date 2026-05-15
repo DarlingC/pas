@@ -39,7 +39,7 @@ if not ENCRYPTION_KEY:
 cipher_suite = Fernet(ENCRYPTION_KEY.encode('utf-8'))
 
 # 数据库路径
-DB_PATH = os.path.join(os.path.dirname(__file__), 'passwords.db')
+DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'passwords.db')
 
 # 创建 Flask 应用
 app = Flask(__name__, static_folder='../public', static_url_path='')
